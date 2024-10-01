@@ -1,3 +1,12 @@
+
+template <class Referent>
+class pin;
+
+template <class Referent>
+class pointer;
+
+class object;
+
 // This pins an object in memory for the duration of a member
 // access.  It's sort of an instance of the "resource aquisition is
 // initialization" paradigm.
@@ -14,8 +23,9 @@ class pin {
   Referent* operator->(void)
   {
     // TODO: We are dereferencing a READ-WRITE version of this pinned object.
-    std::cout<<"Should return a pin, Not implemented yet!"<<std::endl;
-    return NULL;
+    // std::cout<<"Should return a pin, Not implemented yet!"<<std::endl;
+    this->ptr->is_dirty = true;
+    return dynamic_cast<Referent*>(this->ptr->ss->ptrMap[this->ptr->target]->target);
   }
 
   pin(const pointer<Referent>* p)
@@ -23,6 +33,7 @@ class pin {
     // TODO: Create a 'pinned' wrapper of the object pointed to by p
     // A 'pinned' wrapper object live in memory until it is destroyed (i.e , when ~pin is called).
     // DESIGN CONSIDERATION: How does the swap space know not to evict this object?
+    ptr = p;
   }
 
   ~pin(void)
@@ -39,6 +50,8 @@ class pin {
 
   private:
   // TODO: Add fields here.
+  const pointer<Referent>* ptr;
+  
 };
 
 template <class Referent>
@@ -114,7 +127,7 @@ class pointer : public serializable {
   bool is_dirty(void) const
   {
     // TODO: Implement.
-    return false;
+    return is_dirty;
   }
 
   void _serialize(std::iostream& fs, serialization_context& context)
@@ -132,18 +145,31 @@ class pointer : public serializable {
   private:
   swap_space* ss;
   uint64_t target;
+  is_dirty = false;
 
   // Don't call this directly, only swap_space::allocate should use this.
   pointer(swap_space* sspace, Referent* tgt)
   {
     // TODO: Create a 'swap space' pointer for the object pointed to by tgt in that swap space.
     std::cout<<"Book-keeping for referent object here"<<std::endl;
+    object* obj = new object(sspace, tgt);
+    uint64_t id = sspace->obj_count;
+    obj.id = id;
+    if(sspace->ptrMap.size() > sspace->max_in_memory_objects) {
+      // EVICT OBJECT TO DISK
+      
+    }
+    sspace->ptrMap.insert(std::make_pair(id, obj));
+    ss = sspace;
+    target = id;
+    sspace->obj_count += 1;
   }
 };
 
 class object {
   public:
-  object(swap_space* sspace, serializable* tgt);
+  object(swap_space* sspace, serializable* tgt)
+  : target(tgt), id(0), version(0), refcount(0), last_access(0), target_is_dirty(false), pincount(0) {};
 
   serializable* target;
   uint64_t id; // id to fetch from backing store.

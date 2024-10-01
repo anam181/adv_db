@@ -104,6 +104,8 @@ class swap_space {
 // TODO: Design and add the required fields and methods to completely implement the swap space.
   backing_store* backstore;
   uint64_t max_in_memory_objects;
+  static uint64_t obj_count;
+  std::map<uint64_t, object*> ptrMap;
 
 
 
