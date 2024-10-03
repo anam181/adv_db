@@ -1,4 +1,3 @@
-
 template <class Referent>
 class pin;
 
@@ -24,8 +23,20 @@ class pin {
   {
     // TODO: We are dereferencing a READ-WRITE version of this pinned object.
     // std::cout<<"Should return a pin, Not implemented yet!"<<std::endl;
-    this->ptr->is_dirty = true;
-    return dynamic_cast<Referent*>(this->ptr->ss->ptrMap[this->ptr->target]->target);
+    Referent* r;
+    if(ptr->is_in_memory())
+    {
+      r = dynamic_cast<Referent*>(ptr->ss->ptrMap[ptr->target]->target);
+    }
+    else
+    {
+      r = ptr->ss->retrieve_obj_from_disk(ptr);
+    }
+
+    auto now = std::chrono::system_clock::now(); 
+    ptr->ss->ptrMap[ptr->target]->last_access = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                                                        now.time_since_epoch()).count());
+    return r;
   }
 
   pin(const pointer<Referent>* p)
@@ -34,6 +45,7 @@ class pin {
     // A 'pinned' wrapper object live in memory until it is destroyed (i.e , when ~pin is called).
     // DESIGN CONSIDERATION: How does the swap space know not to evict this object?
     ptr = p;
+    ptr->ss->ptrMap[ptr->target]->pincount += 1;
   }
 
   ~pin(void)
@@ -120,14 +132,14 @@ class pointer : public serializable {
 
   bool is_in_memory(void) const
   {
-    // TODO: Implement.
-    return false;
+    // Implement
+    return ss->memory_store.find(target) != ss->memory_store.end();
   }
 
   bool is_dirty(void) const
   {
     // TODO: Implement.
-    return is_dirty;
+    return false;
   }
 
   void _serialize(std::iostream& fs, serialization_context& context)
@@ -145,24 +157,22 @@ class pointer : public serializable {
   private:
   swap_space* ss;
   uint64_t target;
-  is_dirty = false;
 
   // Don't call this directly, only swap_space::allocate should use this.
   pointer(swap_space* sspace, Referent* tgt)
   {
     // TODO: Create a 'swap space' pointer for the object pointed to by tgt in that swap space.
+
+    // Assume obj is new
     std::cout<<"Book-keeping for referent object here"<<std::endl;
-    object* obj = new object(sspace, tgt);
-    uint64_t id = sspace->obj_count;
-    obj.id = id;
-    if(sspace->ptrMap.size() > sspace->max_in_memory_objects) {
-      // EVICT OBJECT TO DISK
-      
-    }
-    sspace->ptrMap.insert(std::make_pair(id, obj));
+    uint64_t id = static_cast<uint64_t>(sspace->ptrMap.size());
     ss = sspace;
     target = id;
-    sspace->obj_count += 1;
+    object* obj = new object(sspace, tgt);
+    obj->id = id;
+    obj->refcount = 1;
+    sspace->ptrMap.insert(std::make_pair(id, obj));
+    sspace->add_object_to_memory(obj);
   }
 };
 

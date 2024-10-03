@@ -1,0 +1,8 @@
+*.o
+2
+**/bs_dir
+**/tmpdir
+*.json
+unit_test
+test
+simple

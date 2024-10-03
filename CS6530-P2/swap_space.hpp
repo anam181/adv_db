@@ -80,6 +80,7 @@
 #include <set>
 #include <sstream>
 #include <unordered_map>
+#include <chrono>
 
 class swap_space {
   public:
@@ -101,13 +102,93 @@ class swap_space {
 #include "pointer.hpp"
 
   private:
+  struct ObjectComparator {
+    bool operator()(const object* lhs, const object* rhs) const {
+        return lhs->last_access < rhs->last_access || (lhs->last_access == rhs->last_access && lhs->id < rhs->id);
+    }
+  };
+
 // TODO: Design and add the required fields and methods to completely implement the swap space.
   backing_store* backstore;
   uint64_t max_in_memory_objects;
-  static uint64_t obj_count;
   std::map<uint64_t, object*> ptrMap;
+  std::unordered_map<uint64_t, object*> memory_store;
 
 
+  void add_object_to_memory(object* obj) 
+  {
+    if(memory_store.size() == max_in_memory_objects)
+    {
+      evict_object_from_memory();
+    }
+
+    // Add object
+    memory_store[obj->id] = obj;
+    std::cout << "ADD:"<< std::endl;
+    print_ptrMap();
+    print_MemoryStore();
+  }
+
+  void evict_object_from_memory() 
+  {
+    uint64_t oldest_timestamp = UINT64_MAX;
+    uint64_t oldest_obj_id;
+    for (const auto& pair : memory_store) {
+        uint64_t curr_timestamp = pair.second->last_access;
+        if(curr_timestamp < oldest_timestamp)
+        {
+          oldest_timestamp = curr_timestamp;
+          oldest_obj_id = pair.second->id;
+        }
+    }
+
+    backstore_store(ptrMap[oldest_obj_id]);
+
+    delete ptrMap[oldest_obj_id]->target;
+    ptrMap[oldest_obj_id]->target = nullptr;
+    memory_store.erase(oldest_obj_id);
+    std::cout << "EVICT:"<< std::endl;
+    print_ptrMap();
+    print_MemoryStore();
+  }
+
+  void print_ptrMap() {
+    std::cout << "PtrMap" << std::endl;
+    for (const auto& pair : ptrMap) {
+        std::cout << "Key: " << pair.first << ", Value: " << pair.second->target << std::endl;
+    }
+    std::cout << std::endl;
+  }
+
+  void print_MemoryStore() {
+    std::cout << "Memory Store" << std::endl;
+    for (const auto& pair : memory_store) {
+        std::cout << "Key: " << pair.first << ", Value: " << pair.second->target << std::endl;
+    }
+    std::cout << std::endl;
+  }
+
+  template <class Referent>
+  Referent* retrieve_obj_from_disk(const pointer<Referent>* ptr)
+  {
+    object* obj = ptrMap[ptr->target];
+
+    if(memory_store.size() == max_in_memory_objects)
+    {
+      evict_object_from_memory();
+    }
+
+    Referent* disk_obj = backstore_load<Referent>(obj->id, obj->version);
+
+    obj->target = disk_obj;
+    memory_store[obj->id] = obj;
+    std::cout << "RETRIEVE:"<< std::endl;
+    print_ptrMap();
+    print_MemoryStore();
+
+    return disk_obj;
+
+  }
 
   // Below are Helper methods provided to you to interface with the backing store.
   template <class Referent>

@@ -47,8 +47,8 @@ void test_backing_store_api() {
 }
 
 void test_swap_space_pointers() {
-  one_file_per_object_backing_store bs("simple_bs");
-  swap_space ss(&bs, 0);
+  one_file_per_object_backing_store bs("tmpdir");
+  swap_space ss(&bs, 1);
   serialization_context ctx(ss);
 
   swap_space::pointer<TestClass> tc = ss.allocate(new TestClass());
@@ -58,6 +58,24 @@ void test_swap_space_pointers() {
   //    In pointer and pin, use the swapspace and backing store to get your object from the disk.
   tc->x = 5; 
   tc->y = 6;
+}
+
+void test_multiple_pointers() {
+  one_file_per_object_backing_store bs("tmpdir");
+  swap_space ss(&bs, 1);
+  serialization_context ctx(ss);
+
+  swap_space::pointer<TestClass> tc = ss.allocate(new TestClass());
+  tc->x = 5; 
+  tc->y = 6;
+  swap_space::pointer<TestClass> tc2 = ss.allocate(new TestClass());
+  tc2->x = 2;
+  tc->x = 6;
+
+  uint64_t x_val = tc->x;
+  uint64_t y_val = tc->y;
+
+  std::cout << "X: " << x_val << " Y: " << y_val << std::endl;
 }
 
 struct LinkedList {
@@ -83,7 +101,12 @@ void test_linked_list() {
   // HINT: Is your swap space pointer serialization/deserialization correct? 
 }
 
+void basic_test() {
+
+}
+
 int main() {
   test_backing_store_api();
   test_swap_space_pointers();
+  test_multiple_pointers();
 }
