@@ -16,7 +16,23 @@ class pin {
   const Referent* operator->(void) const
   {
     // TODO: We are dereferencing a READ-ONLY version of this pinned object.
-    return NULL;
+    const Referent* r;
+    if(ptr->is_in_memory())
+    {
+      // Get object from memory
+      r = dynamic_cast<Referent*>(ptr->ss->ptrMap[ptr->target]->target);
+    }
+    else
+    {
+      // Get object from disk and put into memory
+      r = ptr->ss->retrieve_obj_from_disk(ptr);
+    }
+
+    // Set Timestamp
+    auto now = std::chrono::system_clock::now(); 
+    ptr->ss->ptrMap[ptr->target]->last_access = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                                                        now.time_since_epoch()).count());
+    return r;
   }
 
   Referent* operator->(void)
@@ -32,10 +48,13 @@ class pin {
     {
       r = ptr->ss->retrieve_obj_from_disk(ptr);
     }
-
+    // Set timestamp
     auto now = std::chrono::system_clock::now(); 
     ptr->ss->ptrMap[ptr->target]->last_access = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
                                                                         now.time_since_epoch()).count());
+
+    // Set dirty
+    ptr->ss->ptrMap[ptr->target]->target_is_dirty = true;
     return r;
   }
 
@@ -50,6 +69,7 @@ class pin {
 
   ~pin(void)
   {
+    ptr->ss->ptrMap[ptr->target]->pincount -= 1;
     // TODO: It is now safe to remove a 'pinned' wrapper of the object pointed to by p from memory.
   }
 
@@ -58,6 +78,18 @@ class pin {
     // TODO: Update this pin to be wrapper of the 'other'.
     // HINT: What happens to the 'pinned object' this object was pointing to?
     // HINT: What if other == this?
+    if(other == this) 
+    {
+      return *this;
+    }
+
+    if (ptr->ss && ptr->ss->ptrMap.find(ptr->target) != ptr->ss->ptrMap.end())
+    {
+      ptr->ss->ptrMap[ptr->target]->pincount -= 1;
+    }
+    ptr = other.ptr;
+    return *this;
+  
   }
 
   private:
@@ -83,18 +115,31 @@ class pointer : public serializable {
   pointer(const pointer& other)
   {
     // TODO: Initilize this to be a copy of the pointer pointed to by other
+    ss = other.ss;
+    target = other.target;
+    ss->ptrMap[target]->refcount += 1;
   }
 
   ~pointer(void)
   {
     // TODO: Destroy this pointer.
     // DESIGN CONSIDERATION: (What happens to the object pointed to by this pointer?)
+    ss->ptrMap[target]->refcount -= 1;
   }
 
   pointer& operator=(const pointer& other)
   {
     // TODO: Initilize this to be a copy of the pointer pointed to by other.
     // DESIGN CONSIDERATION: What happens to the object pointed to by this pointer?
+    if (this == &other)
+        return *this;
+
+    if (ss && ss->ptrMap.find(target) != ss->ptrMap.end()) 
+    {
+      ss->ptrMap[target]->refcount -= 1;
+    }
+    ss = other.ss;
+    target = other.target;
     return *this;
   }
 
@@ -110,13 +155,13 @@ class pointer : public serializable {
 
   const pin<Referent> operator->(void) const
   {
-    std::cout<<"Dereferencing swap space pointer, returning a pin of this object"<<std::endl;
+    // std::cout<<"Dereferencing swap space pointer, returning a pin of this object"<<std::endl;
     return pin<Referent>(this);
   }
 
   pin<Referent> operator->(void)
   {
-    std::cout<<"Dereferencing swap space pointer, returning a pin of this object"<<std::endl;
+    // std::cout<<"Dereferencing swap space pointer, returning a pin of this object"<<std::endl;
     return pin<Referent>(this);
   }
 
@@ -139,7 +184,7 @@ class pointer : public serializable {
   bool is_dirty(void) const
   {
     // TODO: Implement.
-    return false;
+    return ss->ptrMap[target]->target_is_dirty;
   }
 
   void _serialize(std::iostream& fs, serialization_context& context)
@@ -164,7 +209,7 @@ class pointer : public serializable {
     // TODO: Create a 'swap space' pointer for the object pointed to by tgt in that swap space.
 
     // Assume obj is new
-    std::cout<<"Book-keeping for referent object here"<<std::endl;
+    // std::cout<<"Book-keeping for referent object here"<<std::endl;
     uint64_t id = static_cast<uint64_t>(sspace->ptrMap.size());
     ss = sspace;
     target = id;

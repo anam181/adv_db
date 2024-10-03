@@ -95,7 +95,7 @@ class swap_space {
   template <class Referent>
   pointer<Referent> allocate(Referent* tgt)
   {
-    std::cout<<"Received a heap pointer, convert it to a swap space pointer here"<<std::endl;
+    // std::cout<<"Received a heap pointer, convert it to a swap space pointer here"<<std::endl;
     return pointer<Referent>(this, tgt);
   }
 
@@ -122,36 +122,76 @@ class swap_space {
       evict_object_from_memory();
     }
 
-    // Add object
+    // Add object to memory
     memory_store[obj->id] = obj;
-    std::cout << "ADD:"<< std::endl;
-    print_ptrMap();
-    print_MemoryStore();
+    // std::cout << "ADD:"<< std::endl;
+    // print_ptrMap();
+    // print_MemoryStore();
   }
 
   void evict_object_from_memory() 
   {
     uint64_t oldest_timestamp = UINT64_MAX;
     uint64_t oldest_obj_id;
+    // Loop through all objects in memory
     for (const auto& pair : memory_store) {
+        // Get objects last access timestamp
         uint64_t curr_timestamp = pair.second->last_access;
-        if(curr_timestamp < oldest_timestamp)
+        // If it is older and not pinned
+        if(curr_timestamp < oldest_timestamp && pair.second->pincount < 1)
         {
           oldest_timestamp = curr_timestamp;
           oldest_obj_id = pair.second->id;
         }
     }
-
+    if(oldest_timestamp == UINT64_MAX) {
+      std::cout << "ERROR: Did not find a free object" << std::endl;
+      print_MemoryStore();
+    }
+    // Store the object before removing
+    object* temp_obj = ptrMap[oldest_obj_id];
+    if(temp_obj == nullptr) {
+      std::cout << "ERROR: OBJECT IS NULL - ID: " << oldest_obj_id << "TIMESTAMP: " << oldest_timestamp << ":" << UINT64_MAX << std::endl;
+    }
     backstore_store(ptrMap[oldest_obj_id]);
 
+    // Remove object from memory
     delete ptrMap[oldest_obj_id]->target;
     ptrMap[oldest_obj_id]->target = nullptr;
     memory_store.erase(oldest_obj_id);
-    std::cout << "EVICT:"<< std::endl;
-    print_ptrMap();
-    print_MemoryStore();
+    // std::cout << "EVICT:"<< std::endl;
+    // print_ptrMap();
+    // print_MemoryStore();
   }
 
+  template <class Referent>
+  Referent* retrieve_obj_from_disk(const pointer<Referent>* ptr)
+  {
+    // Get object wrapper
+    object* obj = ptrMap[ptr->target];
+
+    // Check if memory is full
+    if(memory_store.size() == max_in_memory_objects)
+    {
+      // Evict oldest object
+      evict_object_from_memory();
+    }
+
+    // Load in target object from disk
+    Referent* disk_obj = backstore_load<Referent>(obj->id, obj->version);
+
+    // Set object back into memory
+    obj->target = disk_obj;
+    memory_store[obj->id] = obj;
+    // std::cout << "RETRIEVE:"<< std::endl;
+    // print_ptrMap();
+    // print_MemoryStore();
+
+    return disk_obj;
+
+  }
+
+  
   void print_ptrMap() {
     std::cout << "PtrMap" << std::endl;
     for (const auto& pair : ptrMap) {
@@ -166,28 +206,6 @@ class swap_space {
         std::cout << "Key: " << pair.first << ", Value: " << pair.second->target << std::endl;
     }
     std::cout << std::endl;
-  }
-
-  template <class Referent>
-  Referent* retrieve_obj_from_disk(const pointer<Referent>* ptr)
-  {
-    object* obj = ptrMap[ptr->target];
-
-    if(memory_store.size() == max_in_memory_objects)
-    {
-      evict_object_from_memory();
-    }
-
-    Referent* disk_obj = backstore_load<Referent>(obj->id, obj->version);
-
-    obj->target = disk_obj;
-    memory_store[obj->id] = obj;
-    std::cout << "RETRIEVE:"<< std::endl;
-    print_ptrMap();
-    print_MemoryStore();
-
-    return disk_obj;
-
   }
 
   // Below are Helper methods provided to you to interface with the backing store.
