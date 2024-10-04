@@ -80,13 +80,15 @@
 #include <set>
 #include <sstream>
 #include <unordered_map>
+#include <chrono>
 
 class swap_space {
   public:
   swap_space(backing_store *bs, uint64_t max_in_memory_objects) :
     backstore(bs),
     max_in_memory_objects(max_in_memory_objects) {}
-
+	
+  uint64_t next_id = 1;
   template <class Referent>
   class pointer;
 
@@ -94,17 +96,136 @@ class swap_space {
   template <class Referent>
   pointer<Referent> allocate(Referent* tgt)
   {
-    std::cout<<"Received a heap pointer, convert it to a swap space pointer here"<<std::endl;
+    //std::cout<<"Received a heap pointer, convert it to a swap space pointer here"<<std::endl;
     return pointer<Referent>(this, tgt);
   }
 
 #include "pointer.hpp"
 
   private:
+  struct ObjectComparator {
+    bool operator()(const object* lhs, const object* rhs) const {
+        return lhs->last_access < rhs->last_access || (lhs->last_access == rhs->last_access && lhs->id < rhs->id);
+    }
+  };
+
 // TODO: Design and add the required fields and methods to completely implement the swap space.
   backing_store* backstore;
   uint64_t max_in_memory_objects;
+  std::map<uint64_t, object*> ptrMap;
+  std::unordered_map<uint64_t, object*> memory_store;
 
+
+void add_object_to_memory(object* obj) 
+{
+    std::cout << "[INFO] Attempting to add object with ID: " << obj->id << " to memory." << std::endl;
+
+    if (memory_store.size() >= max_in_memory_objects) 
+    {
+        std::cout << "[INFO] Memory store is full (size: " << memory_store.size() << "/" << max_in_memory_objects << "). Initiating eviction." << std::endl;
+        evict_object_from_memory();
+    }
+
+    // Ensure obj->target is valid before adding to memory_store
+    if (obj->target == nullptr) {
+        std::cout << "ERROR: Object's target is null. Cannot add to memory store." << std::endl;
+        return;
+    }
+
+    // Add object to memory store
+    memory_store[obj->id] = obj;
+
+    std::cout << "[INFO] Added object with ID: " << obj->id << " to memory." << std::endl;
+    print_ptrMap();
+    print_MemoryStore();
+}
+
+
+
+ void evict_object_from_memory() 
+{
+    uint64_t oldest_timestamp = UINT64_MAX;
+    uint64_t oldest_obj_id = 0;
+
+    // Find the least recently used object in memory
+    for (const auto& pair : memory_store) {
+        object* obj = pair.second;
+        if (obj->last_access < oldest_timestamp && obj->pincount == 0) {
+            oldest_timestamp = obj->last_access;
+            oldest_obj_id = obj->id;
+        }
+    }
+
+    if (oldest_obj_id == 0) {
+        std::cerr << "ERROR: Could not find a free object to evict!" << std::endl;
+        return;
+    }
+
+    object* obj_to_evict = memory_store[oldest_obj_id];
+    if (obj_to_evict == nullptr) {
+        std::cerr << "ERROR: Object with ID " << oldest_obj_id << " is null in memory_store!" << std::endl;
+        return;
+    }
+
+    // Store the object to disk
+    backstore_store(obj_to_evict);
+
+    // Only clear the in-memory data (target) but keep it in ptrMap
+    delete obj_to_evict->target;
+    obj_to_evict->target = nullptr;
+
+    // Remove the object from memory store
+    memory_store.erase(oldest_obj_id);
+
+    std::cout << "[INFO] Evicted object with ID: " << oldest_obj_id << " from memory (target set to nullptr)." << std::endl;
+}
+
+
+
+
+  void print_ptrMap() {
+    std::cout << "PtrMap" << std::endl;
+    for (const auto& pair : ptrMap) {
+        std::cout << "Key: " << pair.first << ", Value: " << pair.second->target << std::endl;
+    }
+    std::cout << std::endl;
+  }
+
+  void print_MemoryStore() {
+    std::cout << "Memory Store" << std::endl;
+    for (const auto& pair : memory_store) {
+        std::cout << "Key: " << pair.first << ", Value: " << pair.second->target << std::endl;
+    }
+    std::cout << std::endl;
+  }
+
+template <class Referent>
+Referent* retrieve_obj_from_disk(const pointer<Referent>* ptr)
+{
+    std::cout << "[INFO] Retrieving object with ID: " << ptr->target << " from disk." << std::endl;
+
+    object* obj = ptrMap[ptr->target];
+
+    // If memory is full, evict an object
+    if (memory_store.size() >= max_in_memory_objects) 
+    {
+        std::cout << "[INFO] Memory store is full (size: " << memory_store.size() << "/" << max_in_memory_objects << "). Initiating eviction before loading from disk." << std::endl;
+        evict_object_from_memory();
+    }
+
+    // Load the object from the backstore
+    Referent* disk_obj = backstore_load<Referent>(obj->id, obj->version);
+
+    // Update the object and put it back into memory
+    obj->target = disk_obj;
+    memory_store[obj->id] = obj;
+
+    std::cout << "[INFO] Retrieved object with ID: " << obj->id << " from disk and added to memory." << std::endl;
+    //print_ptrMap();
+    //print_MemoryStore();
+
+    return disk_obj;
+}
 
 
   // Below are Helper methods provided to you to interface with the backing store.
@@ -139,6 +260,7 @@ class swap_space {
     obj->version = new_version_id;
     obj->target_is_dirty = false;
   }
+
 };
 
 #endif // SWAP_SPACE_HPP
