@@ -145,7 +145,7 @@ void deserialize(std::iostream &fs, serialization_context &context, std::string 
   fs.read(buf, length);
   assert(fs.good());
   x = std::string(buf, length);
-  delete buf;
+  delete[] buf;
 }
 
 

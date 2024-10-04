@@ -90,6 +90,25 @@ class swap_space {
   template <class Referent>
   class pointer;
 
+  // Pin an object in memory
+    void pin_object(uint64_t obj_id);
+    // Unpin an object from memory
+    void unpin_object(uint64_t obj_id);
+    // Load an object from the backing store
+    template <class Referent>
+    Referent* load(uint64_t obj_id);
+    // Check if an object is in memory
+    bool is_in_memory(uint64_t obj_id) const;
+    // Check if an object is dirty
+    bool is_dirty(uint64_t obj_id) const;
+    // Allocate a new object in memory
+    template <class Referent>
+    uint64_t allocate(Referent* target);
+
+    void pin_object(uint64_t target);
+    void unpin_object(uint64_t target);// Method to unpin an object identified by target
+    Referent load(uint64_t target);
+
   // Given a heap pointer, construct a ss object around it.
   template <class Referent>
   pointer<Referent> allocate(Referent* tgt)
@@ -97,6 +116,11 @@ class swap_space {
     std::cout<<"Received a heap pointer, convert it to a swap space pointer here"<<std::endl;
     return pointer<Referent>(this, tgt);
   }
+  template <typename T>
+    T load(uint64_t target) {
+        return T(); // Return a default instance
+    }
+
 
 #include "pointer.hpp"
 
