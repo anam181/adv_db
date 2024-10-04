@@ -98,6 +98,27 @@ void test_multiple_pointers_multiple_versions() {
   std::cout << "X: " << x_val << " Y: " << y_val << std::endl;
 }
 
+
+void test_pinning() {
+  one_file_per_object_backing_store bs("testdir");
+  swap_space ss(&bs, 2);
+  serialization_context ctx(ss);
+
+  swap_space::pointer<TestClass> tc = ss.allocate(new TestClass());
+  swap_space::pointer<TestClass> tc2;
+  {
+    swap_space::pin<TestClass> pin1 = tc.get_pin();
+    tc2 = ss.allocate(new TestClass());
+  }
+
+  swap_space::pin<TestClass> pin2 = tc2.get_pin();
+  swap_space::pointer<TestClass> tc3 = ss.allocate(new TestClass());
+
+
+  
+}
+
+
 struct LinkedList {
   struct Node : public serializable {
     uint64_t x;
@@ -126,8 +147,9 @@ void basic_test() {
 }
 
 int main() {
-  test_backing_store_api();
-  test_swap_space_pointers();
-  test_multiple_pointers();
-  test_multiple_pointers_multiple_versions();
+  // test_backing_store_api();
+  // test_swap_space_pointers();
+  // test_multiple_pointers();
+  // test_multiple_pointers_multiple_versions();
+  test_pinning();
 }

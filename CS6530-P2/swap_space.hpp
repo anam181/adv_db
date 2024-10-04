@@ -159,6 +159,7 @@ class swap_space {
     delete ptrMap[oldest_obj_id]->target;
     ptrMap[oldest_obj_id]->target = nullptr;
     memory_store.erase(oldest_obj_id);
+
     // std::cout << "EVICT:"<< std::endl;
     // print_ptrMap();
     // print_MemoryStore();
@@ -203,7 +204,7 @@ class swap_space {
   void print_MemoryStore() {
     std::cout << "Memory Store" << std::endl;
     for (const auto& pair : memory_store) {
-        std::cout << "Key: " << pair.first << ", Value: " << pair.second->target << std::endl;
+        std::cout << "Key: " << pair.first << ", Value: " << pair.second->target<< ", Timestamp: " << pair.second->last_access << ", PinCount: " << pair.second->pincount << std::endl;
     }
     std::cout << std::endl;
   }

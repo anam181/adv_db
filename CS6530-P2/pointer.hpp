@@ -65,12 +65,20 @@ class pin {
     // DESIGN CONSIDERATION: How does the swap space know not to evict this object?
     ptr = p;
     ptr->ss->ptrMap[ptr->target]->pincount += 1;
+
+    // std::cout << "CONSTRUCTOR:"<< std::endl;
+    // // ptr->ss->print_ptrMap();
+    // ptr->ss->print_MemoryStore();
   }
 
   ~pin(void)
   {
+
     ptr->ss->ptrMap[ptr->target]->pincount -= 1;
     // TODO: It is now safe to remove a 'pinned' wrapper of the object pointed to by p from memory.
+    // std::cout << "DESTRUCTOR:"<< std::endl;
+    // // ptr->ss->print_ptrMap();
+    // ptr->ss->print_MemoryStore();
   }
 
   pin& operator=(const pin& other)
@@ -78,16 +86,33 @@ class pin {
     // TODO: Update this pin to be wrapper of the 'other'.
     // HINT: What happens to the 'pinned object' this object was pointing to?
     // HINT: What if other == this?
-    if(other == this) 
+    // std::cout << "ASSIGNMENT OP TOP:"<< std::endl;
+    // // ptr->ss->print_ptrMap();
+    // ptr->ss->print_MemoryStore();
+    if(&other == this) 
     {
       return *this;
     }
 
+    // std::cout << "ASSIGNMENT OP MIDDLE:"<< std::endl;
+    // // ptr->ss->print_ptrMap();
+    // ptr->ss->print_MemoryStore();
+
     if (ptr->ss && ptr->ss->ptrMap.find(ptr->target) != ptr->ss->ptrMap.end())
     {
       ptr->ss->ptrMap[ptr->target]->pincount -= 1;
+      
     }
+
+    // ptr->ss->ptrMap[ptr->target]->pincount -= 1;
+
     ptr = other.ptr;
+    ptr->ss->ptrMap[ptr->target]->pincount += 1;
+
+    // std::cout << "ASSIGNMENT OP BOT:"<< std::endl;
+    // // ptr->ss->print_ptrMap();
+    // ptr->ss->print_MemoryStore();
+
     return *this;
   
   }
@@ -117,7 +142,10 @@ class pointer : public serializable {
     // TODO: Initilize this to be a copy of the pointer pointed to by other
     ss = other.ss;
     target = other.target;
-    ss->ptrMap[target]->refcount += 1;
+    if (ss && ss->ptrMap.find(target) != ss->ptrMap.end())
+    {
+        ss->ptrMap[target]->refcount += 1;
+    }
   }
 
   ~pointer(void)
@@ -140,6 +168,7 @@ class pointer : public serializable {
     }
     ss = other.ss;
     target = other.target;
+    ss->ptrMap[target]->refcount += 1;
     return *this;
   }
 
