@@ -89,7 +89,7 @@ void do_scan(typename betree<Key, Value>::iterator &betit,
 
 #define DEFAULT_TEST_MAX_NODE_SIZE (1ULL<<6)
 #define DEFAULT_TEST_MIN_FLUSH_SIZE (DEFAULT_TEST_MAX_NODE_SIZE / 4)
-#define DEFAULT_TEST_CACHE_SIZE (16)
+#define DEFAULT_TEST_CACHE_SIZE (4)
 #define DEFAULT_TEST_NDISTINCT_KEYS (1ULL << 10)
 #define DEFAULT_TEST_NOPS (1ULL << 12)
 

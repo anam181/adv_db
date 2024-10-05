@@ -113,8 +113,17 @@ void test_pinning() {
 
   swap_space::pin<TestClass> pin2 = tc2.get_pin();
   swap_space::pointer<TestClass> tc3 = ss.allocate(new TestClass());
+}
 
+void test_small_pinning() {
+  one_file_per_object_backing_store bs("testdir");
+  swap_space ss(&bs, 2);
+  serialization_context ctx(ss);
 
+  swap_space::pointer<TestClass> tc = ss.allocate(new TestClass());
+  tc->y = 10;
+  tc->x = tc->y;
+  
   
 }
 
@@ -151,5 +160,6 @@ int main() {
   // test_swap_space_pointers();
   // test_multiple_pointers();
   // test_multiple_pointers_multiple_versions();
-  test_pinning();
+  // test_pinning();
+  test_small_pinning();
 }

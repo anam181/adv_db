@@ -111,8 +111,9 @@ class swap_space {
 // TODO: Design and add the required fields and methods to completely implement the swap space.
   backing_store* backstore;
   uint64_t max_in_memory_objects;
-  std::map<uint64_t, object*> ptrMap;
+  std::unordered_map<uint64_t, object*> ptrMap;
   std::unordered_map<uint64_t, object*> memory_store;
+  uint64_t object_count = 0;
 
 
   void add_object_to_memory(object* obj) 
@@ -124,9 +125,6 @@ class swap_space {
 
     // Add object to memory
     memory_store[obj->id] = obj;
-    // std::cout << "ADD:"<< std::endl;
-    // print_ptrMap();
-    // print_MemoryStore();
   }
 
   void evict_object_from_memory() 
@@ -138,7 +136,7 @@ class swap_space {
         // Get objects last access timestamp
         uint64_t curr_timestamp = pair.second->last_access;
         // If it is older and not pinned
-        if(curr_timestamp < oldest_timestamp && pair.second->pincount < 1)
+        if(pair.second->pincount == 0 && curr_timestamp < oldest_timestamp)
         {
           oldest_timestamp = curr_timestamp;
           oldest_obj_id = pair.second->id;
@@ -153,16 +151,17 @@ class swap_space {
     if(temp_obj == nullptr) {
       std::cout << "ERROR: OBJECT IS NULL - ID: " << oldest_obj_id << "TIMESTAMP: " << oldest_timestamp << ":" << UINT64_MAX << std::endl;
     }
-    backstore_store(ptrMap[oldest_obj_id]);
+
+    if(temp_obj->target_is_dirty) 
+    {
+      backstore_store(ptrMap[oldest_obj_id]);
+    }
 
     // Remove object from memory
     delete ptrMap[oldest_obj_id]->target;
     ptrMap[oldest_obj_id]->target = nullptr;
     memory_store.erase(oldest_obj_id);
 
-    // std::cout << "EVICT:"<< std::endl;
-    // print_ptrMap();
-    // print_MemoryStore();
   }
 
   template <class Referent>
@@ -184,9 +183,6 @@ class swap_space {
     // Set object back into memory
     obj->target = disk_obj;
     memory_store[obj->id] = obj;
-    // std::cout << "RETRIEVE:"<< std::endl;
-    // print_ptrMap();
-    // print_MemoryStore();
 
     return disk_obj;
 

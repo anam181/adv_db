@@ -65,7 +65,14 @@ class pin {
     // DESIGN CONSIDERATION: How does the swap space know not to evict this object?
     ptr = p;
     ptr->ss->ptrMap[ptr->target]->pincount += 1;
-
+    if(ptr->ss->ptrMap[ptr->target]->pincount == 2)
+    {
+      std::cout << "SET TO 2! Constructor! " << ptr->target << std::endl;
+    }
+    else
+    {
+      std::cout << "Pin Constructor " << ptr->target << std::endl;
+    }
     // std::cout << "CONSTRUCTOR:"<< std::endl;
     // // ptr->ss->print_ptrMap();
     // ptr->ss->print_MemoryStore();
@@ -73,7 +80,7 @@ class pin {
 
   ~pin(void)
   {
-
+    std::cout << "Pin Deconstructor " << ptr->target << std::endl;
     ptr->ss->ptrMap[ptr->target]->pincount -= 1;
     // TODO: It is now safe to remove a 'pinned' wrapper of the object pointed to by p from memory.
     // std::cout << "DESTRUCTOR:"<< std::endl;
@@ -86,35 +93,28 @@ class pin {
     // TODO: Update this pin to be wrapper of the 'other'.
     // HINT: What happens to the 'pinned object' this object was pointing to?
     // HINT: What if other == this?
-    // std::cout << "ASSIGNMENT OP TOP:"<< std::endl;
-    // // ptr->ss->print_ptrMap();
-    // ptr->ss->print_MemoryStore();
-    if(&other == this) 
+
+    if(this != &other) 
     {
-      return *this;
-    }
-
-    // std::cout << "ASSIGNMENT OP MIDDLE:"<< std::endl;
-    // // ptr->ss->print_ptrMap();
-    // ptr->ss->print_MemoryStore();
-
-    if (ptr->ss && ptr->ss->ptrMap.find(ptr->target) != ptr->ss->ptrMap.end())
-    {
-      ptr->ss->ptrMap[ptr->target]->pincount -= 1;
-      
-    }
-
-    // ptr->ss->ptrMap[ptr->target]->pincount -= 1;
-
-    ptr = other.ptr;
-    ptr->ss->ptrMap[ptr->target]->pincount += 1;
-
-    // std::cout << "ASSIGNMENT OP BOT:"<< std::endl;
-    // // ptr->ss->print_ptrMap();
-    // ptr->ss->print_MemoryStore();
-
-    return *this;
+      if (ptr->ss && ptr->ss->ptrMap.find(ptr->target) != ptr->ss->ptrMap.end())
+      {
+        ptr->ss->ptrMap[ptr->target]->pincount -= 1;
+        
+      }
+    
+      ptr = other.ptr;
+      ptr->ss->ptrMap[ptr->target]->pincount += 1;
+      if(ptr->ss->ptrMap[ptr->target]->pincount == 2)
+      {
+        std::cout << "SET TO 2! ASSIGNMENT!" << std::endl;
+      }
   
+    }
+    std::cout << "Pin Assignment" << ptr->target << std::endl;
+    // std::cout << "ASSIGNMENT:"<< std::endl;
+    // // ptr->ss->print_ptrMap();
+    // ptr->ss->print_MemoryStore();
+    return *this;
   }
 
   private:
@@ -140,9 +140,10 @@ class pointer : public serializable {
   pointer(const pointer& other)
   {
     // TODO: Initilize this to be a copy of the pointer pointed to by other
+    std::cout << "Copy Constructor! " << other.target << std::endl;
     ss = other.ss;
     target = other.target;
-    if (ss && ss->ptrMap.find(target) != ss->ptrMap.end())
+    if (ss && target) 
     {
         ss->ptrMap[target]->refcount += 1;
     }
@@ -153,12 +154,15 @@ class pointer : public serializable {
     // TODO: Destroy this pointer.
     // DESIGN CONSIDERATION: (What happens to the object pointed to by this pointer?)
     ss->ptrMap[target]->refcount -= 1;
+    
+    std::cout << "Pointer Deconstructor " << target << std::endl;
   }
 
   pointer& operator=(const pointer& other)
   {
     // TODO: Initilize this to be a copy of the pointer pointed to by other.
     // DESIGN CONSIDERATION: What happens to the object pointed to by this pointer?
+    std::cout << "Pointer Assignment " << other.target << std::endl;
     if (this == &other)
         return *this;
 
@@ -185,17 +189,20 @@ class pointer : public serializable {
   const pin<Referent> operator->(void) const
   {
     // std::cout<<"Dereferencing swap space pointer, returning a pin of this object"<<std::endl;
+    std::cout << "ConstDereferencing pointer " << target << std::endl;
     return pin<Referent>(this);
   }
 
   pin<Referent> operator->(void)
   {
     // std::cout<<"Dereferencing swap space pointer, returning a pin of this object"<<std::endl;
+    std::cout << "Dereferencing pointer " << target << std::endl;
     return pin<Referent>(this);
   }
 
   pin<Referent> get_pin(void)
   {
+    std::cout << "Getting Pin " << target << std::endl;
     return pin<Referent>(this);
   }
 
@@ -236,17 +243,18 @@ class pointer : public serializable {
   pointer(swap_space* sspace, Referent* tgt)
   {
     // TODO: Create a 'swap space' pointer for the object pointed to by tgt in that swap space.
+    
 
-    // Assume obj is new
-    // std::cout<<"Book-keeping for referent object here"<<std::endl;
-    uint64_t id = static_cast<uint64_t>(sspace->ptrMap.size());
+    uint64_t id = sspace->object_count;
     ss = sspace;
     target = id;
+    std::cout << "Init Constructor " << id << std::endl;
     object* obj = new object(sspace, tgt);
     obj->id = id;
     obj->refcount = 1;
     sspace->ptrMap.insert(std::make_pair(id, obj));
     sspace->add_object_to_memory(obj);
+    sspace->object_count += 1;
   }
 };
 
