@@ -118,26 +118,20 @@ class swap_space {
 
 void add_object_to_memory(object* obj) 
 {
-    std::cout << "[INFO] Attempting to add object with ID: " << obj->id << " to memory." << std::endl;
+    //std::cout << "Attempting to add object with ID: " << obj->id << " to memory." << std::endl;
 
     if (memory_store.size() >= max_in_memory_objects) 
     {
-        std::cout << "[INFO] Memory store is full (size: " << memory_store.size() << "/" << max_in_memory_objects << "). Initiating eviction." << std::endl;
+        //std::cout << "Memory store is full (size: " << memory_store.size() << "/" << max_in_memory_objects << "). Initiating eviction." << std::endl;
         evict_object_from_memory();
     }
 
-    // Ensure obj->target is valid before adding to memory_store
     if (obj->target == nullptr) {
-        std::cout << "ERROR: Object's target is null. Cannot add to memory store." << std::endl;
         return;
     }
 
-    // Add object to memory store
     memory_store[obj->id] = obj;
 
-    std::cout << "[INFO] Added object with ID: " << obj->id << " to memory." << std::endl;
-    print_ptrMap();
-    print_MemoryStore();
 }
 
 
@@ -147,7 +141,6 @@ void add_object_to_memory(object* obj)
     uint64_t oldest_timestamp = UINT64_MAX;
     uint64_t oldest_obj_id = 0;
 
-    // Find the least recently used object in memory
     for (const auto& pair : memory_store) {
         object* obj = pair.second;
         if (obj->last_access < oldest_timestamp && obj->pincount == 0) {
@@ -157,78 +150,46 @@ void add_object_to_memory(object* obj)
     }
 
     if (oldest_obj_id == 0) {
-        std::cerr << "ERROR: Could not find a free object to evict!" << std::endl;
         return;
     }
 
     object* obj_to_evict = memory_store[oldest_obj_id];
     if (obj_to_evict == nullptr) {
-        std::cerr << "ERROR: Object with ID " << oldest_obj_id << " is null in memory_store!" << std::endl;
         return;
     }
 
-    // Store the object to disk
     backstore_store(obj_to_evict);
 
-    // Only clear the in-memory data (target) but keep it in ptrMap
     delete obj_to_evict->target;
     obj_to_evict->target = nullptr;
 
-    // Remove the object from memory store
     memory_store.erase(oldest_obj_id);
 
-    std::cout << "[INFO] Evicted object with ID: " << oldest_obj_id << " from memory (target set to nullptr)." << std::endl;
+   // std::cout << " Evicted object with ID: " << oldest_obj_id << " from memory (target set to nullptr)." << std::endl;
 }
 
-
-
-
-  void print_ptrMap() {
-    std::cout << "PtrMap" << std::endl;
-    for (const auto& pair : ptrMap) {
-        std::cout << "Key: " << pair.first << ", Value: " << pair.second->target << std::endl;
-    }
-    std::cout << std::endl;
-  }
-
-  void print_MemoryStore() {
-    std::cout << "Memory Store" << std::endl;
-    for (const auto& pair : memory_store) {
-        std::cout << "Key: " << pair.first << ", Value: " << pair.second->target << std::endl;
-    }
-    std::cout << std::endl;
-  }
 
 template <class Referent>
 Referent* retrieve_obj_from_disk(const pointer<Referent>* ptr)
 {
-    std::cout << "[INFO] Retrieving object with ID: " << ptr->target << " from disk." << std::endl;
+    //std::cout << "Retrieving object with ID: " << ptr->target << " from disk." << std::endl;
 
     object* obj = ptrMap[ptr->target];
 
-    // If memory is full, evict an object
     if (memory_store.size() >= max_in_memory_objects) 
     {
-        std::cout << "[INFO] Memory store is full (size: " << memory_store.size() << "/" << max_in_memory_objects << "). Initiating eviction before loading from disk." << std::endl;
         evict_object_from_memory();
     }
 
-    // Load the object from the backstore
     Referent* disk_obj = backstore_load<Referent>(obj->id, obj->version);
 
-    // Update the object and put it back into memory
     obj->target = disk_obj;
     memory_store[obj->id] = obj;
-
-    std::cout << "[INFO] Retrieved object with ID: " << obj->id << " from disk and added to memory." << std::endl;
-    //print_ptrMap();
-    //print_MemoryStore();
 
     return disk_obj;
 }
 
 
-  // Below are Helper methods provided to you to interface with the backing store.
   template <class Referent>
   Referent* backstore_load(uint64_t obj_id, uint64_t obj_version)
   {
@@ -253,7 +214,6 @@ Referent* retrieve_obj_from_disk(const pointer<Referent>* ptr)
     out->write(buffer.data(), buffer.length());
     backstore->put(out);
 
-    //version 0 is the flag that the object exists only in memory.
     if (obj->version > 0)
       backstore->deallocate(obj->id, obj->version);
 

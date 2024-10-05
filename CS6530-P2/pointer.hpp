@@ -53,15 +53,7 @@ class pin {
     // DESIGN CONSIDERATION: How does the swap space know not to evict this object?
     ptr = p;
     ptr->ss->ptrMap[ptr->target]->pincount += 1;
-	
-	/*if (ptr->ss->ptrMap[ptr->target]->pincount==2)
-	{
-		std::cout << "pin count is 2 " << std::endl;
-	}
-	else
-	{
-		std::cout << "[INFO] the pin count is: " << ptr->ss->ptrMap[ptr->target]->pincount << std::endl;
-	}*/
+
   }
 
   ~pin(void)
@@ -118,7 +110,6 @@ class pointer : public serializable {
 	ss = other.ss;
     target = other.target;
 
-    // Increment the refcount of the object pointed to
     if (ss != NULL && target != 0)
     {
         ss->ptrMap[target]->refcount += 1;
@@ -132,11 +123,6 @@ class pointer : public serializable {
 			object* obj = ss->ptrMap[target];
 			obj->refcount -= 1;
 
-			// Instead of deleting, we just set the target to nullptr if refcount is 0.
-			if (obj->refcount == 0)
-			{
-				std::cout << "[INFO] Refcount of object with ID: " << target << " is 0. Not removing from ptrMap." << std::endl;
-			}
 		}
 	}
 
@@ -150,11 +136,6 @@ class pointer : public serializable {
         {
             object* obj = ss->ptrMap[target];
             obj->refcount -= 1;
-			/*if (obj->refcount == 0 && obj->pincount == 0)
-			{
-				ss->ptrMap.erase(target);
-				delete obj;
-			}*/
         }
 
         ss = other.ss;
@@ -236,7 +217,6 @@ class pointer : public serializable {
 
     // Assume obj is new
    // std::cout<<"Book-keeping for referent object here"<<std::endl;
-    //uint64_t id = static_cast<uint64_t>(sspace->ptrMap.size());
 	uint64_t id = sspace->next_id++;
     ss = sspace;
     target = id;
