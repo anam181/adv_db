@@ -1,3 +1,11 @@
+template <class Referent>
+class pin;
+
+template <class Referent>
+class pointer;
+
+class object;
+
 // This pins an object in memory for the duration of a member
 // access.  It's sort of an instance of the "resource aquisition is
 // initialization" paradigm.
@@ -7,15 +15,35 @@ class pin {
   public:
   const Referent* operator->(void) const
   {
-    // TODO: We are dereferencing a READ-ONLY version of this pinned object.
-    return NULL;
+    if (ptr->is_in_memory())
+    {
+      return static_cast<const Referent*>(ptr->ss->ptrMap[ptr->target]->target);
+    }
+    else
+    {
+      const Referent* r = ptr->ss->retrieve_obj_from_disk(ptr);
+      return r;
+    }
   }
 
   Referent* operator->(void)
   {
     // TODO: We are dereferencing a READ-WRITE version of this pinned object.
-    std::cout<<"Should return a pin, Not implemented yet!"<<std::endl;
-    return NULL;
+    // std::cout<<"Should return a pin, Not implemented yet!"<<std::endl;
+    Referent* r;
+    if(ptr->is_in_memory())
+    {
+      r = dynamic_cast<Referent*>(ptr->ss->ptrMap[ptr->target]->target);
+    }
+    else
+    {
+      r = ptr->ss->retrieve_obj_from_disk(ptr);
+    }
+
+    auto now = std::chrono::system_clock::now(); 
+    ptr->ss->ptrMap[ptr->target]->last_access = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                                                        now.time_since_epoch()).count());
+    return r;
   }
 
   pin(const pointer<Referent>* p)
@@ -23,11 +51,15 @@ class pin {
     // TODO: Create a 'pinned' wrapper of the object pointed to by p
     // A 'pinned' wrapper object live in memory until it is destroyed (i.e , when ~pin is called).
     // DESIGN CONSIDERATION: How does the swap space know not to evict this object?
+    ptr = p;
+    ptr->ss->ptrMap[ptr->target]->pincount += 1;
+
   }
 
   ~pin(void)
   {
     // TODO: It is now safe to remove a 'pinned' wrapper of the object pointed to by p from memory.
+	 ptr->ss->ptrMap[ptr->target]->pincount -= 1;
   }
 
   pin& operator=(const pin& other)
@@ -35,10 +67,27 @@ class pin {
     // TODO: Update this pin to be wrapper of the 'other'.
     // HINT: What happens to the 'pinned object' this object was pointing to?
     // HINT: What if other == this?
+    if (this != &other)
+    {
+        if (ptr)
+        {
+            ptr->ss->ptrMap[ptr->target]->pincount -= 1;
+        }
+
+        ptr = other.ptr;
+
+        if (ptr)
+        {
+            ptr->ss->ptrMap[ptr->target]->pincount += 1;
+        }
+    }
+	return *this;
   }
 
   private:
   // TODO: Add fields here.
+  const pointer<Referent>* ptr;
+  
 };
 
 template <class Referent>
@@ -58,18 +107,46 @@ class pointer : public serializable {
   pointer(const pointer& other)
   {
     // TODO: Initilize this to be a copy of the pointer pointed to by other
+	ss = other.ss;
+    target = other.target;
+
+    if (ss != NULL && target != 0)
+    {
+        ss->ptrMap[target]->refcount += 1;
+    }
   }
 
-  ~pointer(void)
-  {
-    // TODO: Destroy this pointer.
-    // DESIGN CONSIDERATION: (What happens to the object pointed to by this pointer?)
-  }
+	~pointer(void)
+	{
+		if (ss != NULL && target != 0)
+		{
+			object* obj = ss->ptrMap[target];
+			obj->refcount -= 1;
+
+		}
+	}
 
   pointer& operator=(const pointer& other)
   {
     // TODO: Initilize this to be a copy of the pointer pointed to by other.
     // DESIGN CONSIDERATION: What happens to the object pointed to by this pointer?
+    if (this != &other)
+    {
+        if (ss != NULL && target != 0)
+        {
+            object* obj = ss->ptrMap[target];
+            obj->refcount -= 1;
+        }
+
+        ss = other.ss;
+        target = other.target;
+
+        if (ss && target != 0)
+        {
+            ss->ptrMap[target]->refcount += 1;
+        }
+    }
+
     return *this;
   }
 
@@ -85,13 +162,13 @@ class pointer : public serializable {
 
   const pin<Referent> operator->(void) const
   {
-    std::cout<<"Dereferencing swap space pointer, returning a pin of this object"<<std::endl;
+    //std::cout<<"Dereferencing swap space pointer, returning a pin of this object"<<std::endl;
     return pin<Referent>(this);
   }
 
   pin<Referent> operator->(void)
   {
-    std::cout<<"Dereferencing swap space pointer, returning a pin of this object"<<std::endl;
+    //std::cout<<"Dereferencing swap space pointer, returning a pin of this object"<<std::endl;
     return pin<Referent>(this);
   }
 
@@ -107,14 +184,14 @@ class pointer : public serializable {
 
   bool is_in_memory(void) const
   {
-    // TODO: Implement.
-    return false;
+    // Implement
+    return ss->memory_store.find(target) != ss->memory_store.end();
   }
 
   bool is_dirty(void) const
   {
     // TODO: Implement.
-    return false;
+    return ss->ptrMap[target]->target_is_dirty;
   }
 
   void _serialize(std::iostream& fs, serialization_context& context)
@@ -137,13 +214,24 @@ class pointer : public serializable {
   pointer(swap_space* sspace, Referent* tgt)
   {
     // TODO: Create a 'swap space' pointer for the object pointed to by tgt in that swap space.
-    std::cout<<"Book-keeping for referent object here"<<std::endl;
+
+    // Assume obj is new
+   // std::cout<<"Book-keeping for referent object here"<<std::endl;
+	uint64_t id = sspace->next_id++;
+    ss = sspace;
+    target = id;
+    object* obj = new object(sspace, tgt);
+    obj->id = id;
+    obj->refcount = 1;
+    sspace->ptrMap.insert(std::make_pair(id, obj));
+    sspace->add_object_to_memory(obj);
   }
 };
 
 class object {
   public:
-  object(swap_space* sspace, serializable* tgt);
+  object(swap_space* sspace, serializable* tgt)
+  : target(tgt), id(0), version(0), refcount(0), last_access(0), target_is_dirty(false), pincount(0) {};
 
   serializable* target;
   uint64_t id; // id to fetch from backing store.

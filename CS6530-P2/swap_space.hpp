@@ -80,13 +80,15 @@
 #include <set>
 #include <sstream>
 #include <unordered_map>
+#include <chrono>
 
 class swap_space {
   public:
   swap_space(backing_store *bs, uint64_t max_in_memory_objects) :
     backstore(bs),
     max_in_memory_objects(max_in_memory_objects) {}
-
+	
+  uint64_t next_id = 1;
   template <class Referent>
   class pointer;
 
@@ -94,20 +96,100 @@ class swap_space {
   template <class Referent>
   pointer<Referent> allocate(Referent* tgt)
   {
-    std::cout<<"Received a heap pointer, convert it to a swap space pointer here"<<std::endl;
+    //std::cout<<"Received a heap pointer, convert it to a swap space pointer here"<<std::endl;
     return pointer<Referent>(this, tgt);
   }
 
 #include "pointer.hpp"
 
   private:
+  struct ObjectComparator {
+    bool operator()(const object* lhs, const object* rhs) const {
+        return lhs->last_access < rhs->last_access || (lhs->last_access == rhs->last_access && lhs->id < rhs->id);
+    }
+  };
+
 // TODO: Design and add the required fields and methods to completely implement the swap space.
   backing_store* backstore;
   uint64_t max_in_memory_objects;
+  std::map<uint64_t, object*> ptrMap;
+  std::unordered_map<uint64_t, object*> memory_store;
+
+
+void add_object_to_memory(object* obj) 
+{
+    //std::cout << "Attempting to add object with ID: " << obj->id << " to memory." << std::endl;
+
+    if (memory_store.size() >= max_in_memory_objects) 
+    {
+        //std::cout << "Memory store is full (size: " << memory_store.size() << "/" << max_in_memory_objects << "). Initiating eviction." << std::endl;
+        evict_object_from_memory();
+    }
+
+    if (obj->target == nullptr) {
+        return;
+    }
+
+    memory_store[obj->id] = obj;
+
+}
 
 
 
-  // Below are Helper methods provided to you to interface with the backing store.
+ void evict_object_from_memory() 
+{
+    uint64_t oldest_timestamp = UINT64_MAX;
+    uint64_t oldest_obj_id = 0;
+
+    for (const auto& pair : memory_store) {
+        object* obj = pair.second;
+        if (obj->last_access < oldest_timestamp && obj->pincount == 0) {
+            oldest_timestamp = obj->last_access;
+            oldest_obj_id = obj->id;
+        }
+    }
+
+    if (oldest_obj_id == 0) {
+        return;
+    }
+
+    object* obj_to_evict = memory_store[oldest_obj_id];
+    if (obj_to_evict == nullptr) {
+        return;
+    }
+
+    backstore_store(obj_to_evict);
+
+    delete obj_to_evict->target;
+    obj_to_evict->target = nullptr;
+
+    memory_store.erase(oldest_obj_id);
+
+   // std::cout << " Evicted object with ID: " << oldest_obj_id << " from memory (target set to nullptr)." << std::endl;
+}
+
+
+template <class Referent>
+Referent* retrieve_obj_from_disk(const pointer<Referent>* ptr)
+{
+    //std::cout << "Retrieving object with ID: " << ptr->target << " from disk." << std::endl;
+
+    object* obj = ptrMap[ptr->target];
+
+    if (memory_store.size() >= max_in_memory_objects) 
+    {
+        evict_object_from_memory();
+    }
+
+    Referent* disk_obj = backstore_load<Referent>(obj->id, obj->version);
+
+    obj->target = disk_obj;
+    memory_store[obj->id] = obj;
+
+    return disk_obj;
+}
+
+
   template <class Referent>
   Referent* backstore_load(uint64_t obj_id, uint64_t obj_version)
   {
@@ -132,13 +214,13 @@ class swap_space {
     out->write(buffer.data(), buffer.length());
     backstore->put(out);
 
-    //version 0 is the flag that the object exists only in memory.
     if (obj->version > 0)
       backstore->deallocate(obj->id, obj->version);
 
     obj->version = new_version_id;
     obj->target_is_dirty = false;
   }
+
 };
 
 #endif // SWAP_SPACE_HPP

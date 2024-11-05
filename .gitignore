@@ -1,0 +1,10 @@
+*/tmpdir
+*/testdir
+*.json
+*.vscode
+test
+2
+*.o
+generate
+test_logging_restore
+*/CS6530-P2/*
