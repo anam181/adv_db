@@ -174,6 +174,8 @@ public:
 
   template<class Referent> class pointer;
 
+  void write_back_dirty_pages_info_to_disk(void);
+
   //Given a heap pointer, construct a ss object around it.
   //this is used to register nodes in the ss.
   template<class Referent>
@@ -297,32 +299,32 @@ public:
 
     void depoint(void) {
       if (target == 0)
-	return;
+	      return;
       assert(ss->objects.count(target) > 0);
 
       object *obj = ss->objects[target];
       assert(obj->refcount > 0);
       if ((--obj->refcount) == 0) {
-	debug(std::cout << "Erasing " << target << " id " << ss->objects[target]->id << " version " << ss->objects[target]->version << std::endl);
-	// Load it into memory so we can recursively free stuff
-	if (obj->target == NULL) {
-	  assert(obj->version > 0);
-	  if (!obj->is_leaf) {
-	    ss->load<Referent>(target);
-	  } else {
-	    debug(std::cout << "Skipping load of leaf " << target << " id " << ss->objects[target]->id << " version " << ss->objects[target]->version << std::endl);
-	  }
-	}
-	ss->objects.erase(target);
-	ss->lru_pqueue.erase(obj);
-	if (obj->target)
-	  delete obj->target;
-	ss->current_in_memory_objects--;
-	if (obj->version > 0)
-	  ss->backstore->deallocate(obj->id, obj->version);
-	delete obj;
+        debug(std::cout << "Erasing " << target << " id " << ss->objects[target]->id << " version " << ss->objects[target]->version << std::endl);
+        // Load it into memory so we can recursively free stuff
+        if (obj->target == NULL) {
+          assert(obj->version > 0);
+          if (!obj->is_leaf) {
+            ss->load<Referent>(target);
+          } else {
+            debug(std::cout << "Skipping load of leaf " << target << " id " << ss->objects[target]->id << " version " << ss->objects[target]->version << std::endl);
+          }
+        }
+        ss->objects.erase(target);
+        ss->lru_pqueue.erase(obj);
+        if (obj->target)
+          delete obj->target;
+        ss->current_in_memory_objects--;
+        // if (obj->version > 0)
+        //   ss->backstore->deallocate(obj->id, obj->version);
+        delete obj;
       }
-      target = 0;
+        target = 0;
     }
 
     pointer & operator=(const pointer &other) {

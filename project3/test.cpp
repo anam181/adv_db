@@ -14,6 +14,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include "betree.hpp"
+#include "logger.hpp"
 
 void timer_start(uint64_t &timer)
 {
@@ -128,6 +129,7 @@ int test(betree<uint64_t, std::string> &b,
   std::map<uint64_t, std::string> reference;
 
   for (unsigned int i = 0; i < nops; i++) {
+    std::cout << "TEST " << i << std::endl;
     int op;
     uint64_t t;
     if (script_input) {
@@ -279,6 +281,8 @@ int main(int argc, char **argv)
  
   int opt;
   char *term;
+  
+  Logger logger("kv_store.log");
     
   //////////////////////
   // Argument parsing //
@@ -408,7 +412,7 @@ int main(int argc, char **argv)
   
   one_file_per_object_backing_store ofpobs(backing_store_dir);
   swap_space sspace(&ofpobs, cache_size);
-  betree<uint64_t, std::string> b(&sspace, max_node_size, min_flush_size);
+  betree<uint64_t, std::string> b(&sspace, max_node_size, max_node_size/4, min_flush_size, logger);
 
   if (strcmp(mode, "test") == 0) 
     test(b, nops, number_of_distinct_keys, script_input, script_output);

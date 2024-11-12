@@ -115,8 +115,8 @@ void swap_space::write_back(swap_space::object *obj)
     backstore->put(out);
 
     //version 0 is the flag that the object exists only in memory.
-    if (obj->version > 0)
-      backstore->deallocate(obj->id, obj->version);
+    // if (obj->version > 0)
+    //   backstore->deallocate(obj->id, obj->version);
     obj->version = new_version_id;
     obj->target_is_dirty = false;
   }
@@ -144,6 +144,24 @@ void swap_space::maybe_evict_something(void)
     delete obj->target;
     obj->target = NULL;
     current_in_memory_objects--;
+  }
+}
+
+void swap_space::write_back_dirty_pages_info_to_disk(void)
+{
+  object *obj = NULL;
+  for (auto it = lru_pqueue.begin(); it != lru_pqueue.end(); ++it) {
+    obj = *it;
+    if (obj == NULL || !obj->target_is_dirty)
+      continue;
+
+    // lru_pqueue.erase(obj);
+
+    write_back(obj);
+    
+    // delete obj->target;
+    // obj->target = NULL;
+    // current_in_memory_objects--;
   }
 }
 

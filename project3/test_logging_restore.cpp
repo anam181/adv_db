@@ -16,6 +16,7 @@
 
 // INCLUDE YOUR LOGGING FILE HERE
 #include "betree.hpp"
+#include "logger.hpp"
 
 void timer_start(uint64_t &timer) {
     struct timeval t;
@@ -222,6 +223,8 @@ int main(int argc, char **argv) {
 
     int opt;
     char *term;
+	
+	Logger logger("kv_store.log");
 
     //////////////////////
     // Argument parsing //
@@ -397,7 +400,7 @@ int main(int argc, char **argv) {
     //ofpobs.reset_ids();
 
     swap_space sspace(&ofpobs, cache_size);
-    betree<uint64_t, std::string> b(&sspace, max_node_size, min_flush_size);
+    betree<uint64_t, std::string> b(&sspace, max_node_size, max_node_size/4, min_flush_size, logger);
 
     /**
      * STUDENTS: INITIALIZE YOUR CLASS HERE

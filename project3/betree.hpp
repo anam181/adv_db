@@ -55,6 +55,7 @@
 #include <cassert>
 #include "swap_space.hpp"
 #include "backing_store.hpp"
+#include "logger.hpp"
 
 ////////////////// Upserts
 
@@ -177,7 +178,6 @@ bool operator==(const Message<Value> &a, const Message<Value> &b) {
 
 template<class Key, class Value> class betree {
 private:
-
   class node;
   // We let a swap_space handle all the I/O.
   typedef typename swap_space::pointer<node> node_pointer;
@@ -647,45 +647,91 @@ private:
   node_pointer root;
   uint64_t next_timestamp = 1; // Nothing has a timestamp of 0
   Value default_value;
+  Logger& logger;
+  uint64_t operation_count = 0;
+  const uint64_t checkpoint_threshold = 100;
+
   
 public:
-  betree(swap_space *sspace,
-	 uint64_t maxnodesize = DEFAULT_MAX_NODE_SIZE,
-	 uint64_t minnodesize = DEFAULT_MAX_NODE_SIZE / 4,
-	 uint64_t minflushsize = DEFAULT_MIN_FLUSH_SIZE) :
+	betree(swap_space *sspace,
+           uint64_t maxnodesize,
+           uint64_t minnodesize,
+           uint64_t minflushsize,
+           Logger& logger):
     ss(sspace),
     min_flush_size(minflushsize),
     max_node_size(maxnodesize),
-    min_node_size(minnodesize)
-  {
-    root = ss->allocate(new node);
-  }
-
-  // Insert the specified message and handle a split of the root if it
-  // occurs.
-  void upsert(int opcode, Key k, Value v)
-  {
-    message_map tmp;
-    tmp[MessageKey<Key>(k, next_timestamp++)] = Message<Value>(opcode, v);
-    pivot_map new_nodes = root->flush(*this, tmp);
-    if (new_nodes.size() > 0) {
+    min_node_size(minnodesize),
+    logger(logger),
+    operation_count(0),
+    checkpoint_threshold(100)
+    {
       root = ss->allocate(new node);
-      root->pivots = new_nodes;
     }
-  }
+    
+
+    void checkpoint() {
+      // Perform checkpointing only after a certain number of operations (threshold)
+      std::cout << "Performing checkpoint..." << std::endl;
+      // Flush logs
+      logger.flush();
+
+      // Flush the lru queue
+      ss->write_back_dirty_pages_info_to_disk();
+
+      // Clear the log on disk
+      logger.clear_log_on_disk();
+
+      // Push Checkpoint entry
+      LogRecord record = {static_cast<OperationType>(3), 0, "", next_timestamp}; 
+      logger.log(record);
+
+      // Flush map to disk
+
+
+      
+      operation_count = 0;
+    }
+
+    void clear_log() {
+        logger.clear_log();
+    }
+
+    // Insert the specified message and handle a split of the root if it occurs.
+    void upsert(int opcode, Key k, Value v) {
+        operation_count++;
+        std::cout << "Upserting: " << opcode << " " << k << " with value: " << v << "Op count" << operation_count <<std::endl;
+        LogRecord record = {static_cast<OperationType>(opcode), k, v, next_timestamp++}; 
+        logger.log(record);
+
+        message_map tmp;
+        tmp[MessageKey<Key>(k, next_timestamp)] = Message<Value>(opcode, v);
+        pivot_map new_nodes = root->flush(*this, tmp);
+        if (new_nodes.size() > 0) {
+            root = ss->allocate(new node);
+            root->pivots = new_nodes;
+        }
+
+        if (operation_count >= checkpoint_threshold) {
+            checkpoint();
+        }
+    }
 
   void insert(Key k, Value v)
   {
+	std::cout << "Inserting: Key = " << k << ", Value = " << v << std::endl;
     upsert(INSERT, k, v);
   }
 
   void update(Key k, Value v)
   {
+	std::cout << "Updating: Key = " << k << ", New Value = " << v << std::endl;
     upsert(UPDATE, k, v);
   }
 
   void erase(Key k)
   {
+	std::cout << "Deleting: Key = " << k << std::endl;
     upsert(DELETE, k, default_value);
   }
   
