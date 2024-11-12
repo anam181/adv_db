@@ -7,11 +7,10 @@
 #include <stdexcept>
 #include <cstdint>
 
-
 enum OperationType {
-    INSERT,
-    UPDATE,
-    DELETE
+    INSERT, // 0
+    UPDATE, // 1
+    DELETE  // 2
 };
 
 struct LogRecord {
@@ -20,26 +19,32 @@ struct LogRecord {
     std::string value;      
     uint64_t timestamp;     
 
-    // how it will be written to txt file - going with json format for readibility but we can change that
-	std::string serialize() const {
-		return "{\"operation\":" + std::to_string(operation) +
-			   ", \"key\":" + std::to_string(key) +
-			   ", \"value\":\"" + value +
-			   "\", \"timestamp\":" + std::to_string(timestamp) + "}";
-	}
+    // How it will be written to txt file - JSON format for readability
+    std::string serialize() const {
+        return "{\"operation\":" + std::to_string(operation) +
+               ", \"key\":" + std::to_string(key) +
+               ", \"value\":\"" + value +
+               "\", \"timestamp\":" + std::to_string(timestamp) + "}";
+    }
 };
 
 class Logger {
 public:
-    Logger(const std::string& filename);
+    Logger(const std::string& filename, size_t flush_threshold = 10);  // Make flush_threshold configurable
     ~Logger();
+    
     void log(const LogRecord& record);
-    void flush();
+    void flush();  // Flush current buffer to file
+    void clear();  // Clear log buffer after checkpoint
+    
+    std::vector<LogRecord>& get_log_buffer(); // Get log buffer for external use
+	std::vector<LogRecord> get_log_entries();
+    void clear_log();                        
 
 private:
     std::ofstream log_file;
     std::vector<LogRecord> log_buffer;
-    const size_t flush_threshold = 10;
+    const size_t flush_threshold;  // Flush threshold, configurable through the constructor
 };
 
 #endif

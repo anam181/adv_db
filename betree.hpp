@@ -648,6 +648,9 @@ private:
   uint64_t next_timestamp = 1; // Nothing has a timestamp of 0
   Value default_value;
   Logger& logger;
+  uint64_t operation_count = 0;
+  const uint64_t checkpoint_threshold = 100;
+
   
 public:
 	betree(swap_space *sspace,
@@ -659,27 +662,87 @@ public:
     min_flush_size(minflushsize),
     max_node_size(maxnodesize),
     min_node_size(minnodesize),
-	logger(logger)
+	logger(logger),
+	operation_count(0),
+	checkpoint_threshold(100)
   {
     root = ss->allocate(new node);
   }
+    
+	void flush_tree_to_disk() {
+    std::cout << "Flushing tree to disk..." << std::endl;
 
-  // Insert the specified message and handle a split of the root if it
-  // occurs.
-  void upsert(int opcode, Key k, Value v)
-  {
-	std::cout << "Upserting: " << opcode << " " << k << " with value: " << v << std::endl;
-	LogRecord record = {static_cast<OperationType>(opcode), k, v, next_timestamp++}; 
-    logger.log(record);
-	
-    message_map tmp;
-    tmp[MessageKey<Key>(k, next_timestamp++)] = Message<Value>(opcode, v);
-    pivot_map new_nodes = root->flush(*this, tmp);
-    if (new_nodes.size() > 0) {
-      root = ss->allocate(new node);
-      root->pivots = new_nodes;
+    // Ensure the root node is serializable
+    if (!std::is_base_of<serializable, typename betree<Key, Value>::node>::value) {
+        std::cerr << "Error: node class must implement serializable interface." << std::endl;
+        return;
     }
-  }
+
+    // Allocate swap_space::object using root (which is a node pointer)
+    swap_space::object* tree_object = ss->allocate(root);  // Allocate using swap_space
+
+    // Now write the node (root) to disk
+    ss->write_back(tree_object);  // Write it back to disk
+
+    // Optionally clean up the tree_object (though it's managed by swap_space)
+    delete tree_object;
+    }
+
+    void checkpoint() {
+        // Perform checkpointing only after a certain number of operations (threshold)
+        if (operation_count >= checkpoint_threshold) {
+            std::cout << "Performing checkpoint..." << std::endl;
+
+            // First, flush the tree to disk
+            flush_tree_to_disk();
+
+            // Now, apply log entries to the tree
+            apply_log_to_tree();
+
+            // Clear the log after applying all operations up to this point
+            clear_log();
+
+            // Reset the operation count to start tracking for the next checkpoint
+            operation_count = 0;
+        }
+    }
+
+    void apply_log_to_tree() {
+        const auto& log_entries = logger.get_log_buffer();  // Assuming logger has a method to fetch the log buffer
+
+        for (const auto& log_entry : log_entries) {
+            // Apply the log entry to the tree
+            root->apply(MessageKey<Key>(log_entry.key, log_entry.timestamp),
+                        Message<Value>(log_entry.operation, log_entry.value),
+                        default_value);
+        }
+    }
+
+    void clear_log() {
+        logger.clear_log();  // Assuming logger has a method to clear its internal log buffer
+    }
+
+    // Insert the specified message and handle a split of the root if it occurs.
+    void upsert(int opcode, Key k, Value v) {
+        std::cout << "Upserting: " << opcode << " " << k << " with value: " << v << std::endl;
+        LogRecord record = {static_cast<OperationType>(opcode), k, v, next_timestamp++}; 
+        logger.log(record);
+
+        message_map tmp;
+        tmp[MessageKey<Key>(k, next_timestamp++)] = Message<Value>(opcode, v);
+        pivot_map new_nodes = root->flush(*this, tmp);
+        if (new_nodes.size() > 0) {
+            root = ss->allocate(new node);
+            root->pivots = new_nodes;
+        }
+
+        operation_count++;
+
+        if (operation_count >= checkpoint_threshold) {
+            checkpoint();
+            operation_count = 0;
+        }
+    }
 
   void insert(Key k, Value v)
   {
