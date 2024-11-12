@@ -31,9 +31,13 @@ void Logger::flush() {
 }
 
 std::vector<LogRecord> Logger::get_log_entries() {
-    return log_buffer;  // Return the log entries stored in memory
+    return log_buffer;  
+}
+
+std::vector<LogRecord>& Logger::get_log_buffer() {
+    return log_buffer;  
 }
 
 void Logger::clear_log() {
-    log_buffer.clear();  // Clear the log buffer after a checkpoint
+    log_buffer.clear();
 }

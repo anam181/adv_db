@@ -692,23 +692,15 @@ public:
         // Perform checkpointing only after a certain number of operations (threshold)
         if (operation_count >= checkpoint_threshold) {
             std::cout << "Performing checkpoint..." << std::endl;
-
-            // First, flush the tree to disk
             flush_tree_to_disk();
-
-            // Now, apply log entries to the tree
             apply_log_to_tree();
-
-            // Clear the log after applying all operations up to this point
             clear_log();
-
-            // Reset the operation count to start tracking for the next checkpoint
             operation_count = 0;
         }
     }
 
     void apply_log_to_tree() {
-        const auto& log_entries = logger.get_log_buffer();  // Assuming logger has a method to fetch the log buffer
+        const auto& log_entries = logger.get_log_buffer();
 
         for (const auto& log_entry : log_entries) {
             // Apply the log entry to the tree
@@ -719,7 +711,7 @@ public:
     }
 
     void clear_log() {
-        logger.clear_log();  // Assuming logger has a method to clear its internal log buffer
+        logger.clear_log();
     }
 
     // Insert the specified message and handle a split of the root if it occurs.
