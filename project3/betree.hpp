@@ -649,7 +649,6 @@ private:
   Value default_value;
   Logger& logger;
   uint64_t operation_count = 0;
-  const uint64_t checkpoint_threshold = 100;
 
   
 public:
@@ -663,31 +662,30 @@ public:
     max_node_size(maxnodesize),
     min_node_size(minnodesize),
     logger(logger),
-    operation_count(0),
-    checkpoint_threshold(100)
+    operation_count(0)
     {
-      root = ss->allocate(new node);
+      root = ss->allocate_root(new node);
     }
     
 
     void checkpoint() {
       // Perform checkpointing only after a certain number of operations (threshold)
-      std::cout << "Performing checkpoint..." << std::endl;
+      // std::cout << "Performing checkpoint..." << std::endl;
       // Flush logs
       logger.flush();
 
       // Flush the lru queue
       ss->write_back_dirty_pages_info_to_disk();
 
+      // Flush map to disk
+      ss->write_version_map_to_disk();
+
       // Clear the log on disk
       logger.clear_log_on_disk();
 
       // Push Checkpoint entry
-      LogRecord record = {static_cast<OperationType>(3), 0, "", next_timestamp}; 
+      Logger::LogRecord record = {static_cast<OperationType>(3), 0, "", next_timestamp}; 
       logger.log(record);
-
-      // Flush map to disk
-
 
       
       operation_count = 0;
@@ -700,38 +698,38 @@ public:
     // Insert the specified message and handle a split of the root if it occurs.
     void upsert(int opcode, Key k, Value v) {
         operation_count++;
-        std::cout << "Upserting: " << opcode << " " << k << " with value: " << v << "Op count" << operation_count <<std::endl;
-        LogRecord record = {static_cast<OperationType>(opcode), k, v, next_timestamp++}; 
+        // std::cout << "Upserting: " << opcode << " " << k << " with value: " << v << "Op count" << operation_count <<std::endl;
+        Logger::LogRecord record = {static_cast<OperationType>(opcode), k, v, next_timestamp++}; 
         logger.log(record);
 
         message_map tmp;
         tmp[MessageKey<Key>(k, next_timestamp)] = Message<Value>(opcode, v);
         pivot_map new_nodes = root->flush(*this, tmp);
         if (new_nodes.size() > 0) {
-            root = ss->allocate(new node);
+            root = ss->allocate_root(new node);
             root->pivots = new_nodes;
         }
 
-        if (operation_count >= checkpoint_threshold) {
+        if (operation_count >= logger.get_checkpoint_granularity()) {
             checkpoint();
         }
     }
 
   void insert(Key k, Value v)
   {
-	std::cout << "Inserting: Key = " << k << ", Value = " << v << std::endl;
+	// std::cout << "Inserting: Key = " << k << ", Value = " << v << std::endl;
     upsert(INSERT, k, v);
   }
 
   void update(Key k, Value v)
   {
-	std::cout << "Updating: Key = " << k << ", New Value = " << v << std::endl;
+	// std::cout << "Updating: Key = " << k << ", New Value = " << v << std::endl;
     upsert(UPDATE, k, v);
   }
 
   void erase(Key k)
   {
-	std::cout << "Deleting: Key = " << k << std::endl;
+	// std::cout << "Deleting: Key = " << k << std::endl;
     upsert(DELETE, k, default_value);
   }
   

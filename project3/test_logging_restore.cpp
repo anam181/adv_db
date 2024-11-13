@@ -223,8 +223,6 @@ int main(int argc, char **argv) {
 
     int opt;
     char *term;
-	
-	Logger logger("kv_store.log");
 
     //////////////////////
     // Argument parsing //
@@ -340,6 +338,8 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
+    Logger logger("kv_store.log", persistence_granularity, checkpoint_granularity);
+
     FILE *script_input = NULL;
     FILE *script_output = NULL;
 
@@ -419,9 +419,9 @@ int main(int argc, char **argv) {
     if (strcmp(mode, "test") == 0)
         test(b, nops, number_of_distinct_keys, script_input, script_output);
     else if (strcmp(mode, "benchmark-upserts") == 0) {
-        std::cerr << "benchmark-upserts is not available for this testing program!" << std::endl;
-        return 0;
-        // benchmark_upserts(b, nops, number_of_distinct_keys, random_seed);
+        // std::cerr << "benchmark-upserts is not available for this testing program!" << std::endl;
+        // return 0;
+        benchmark_upserts(b, nops, number_of_distinct_keys, random_seed);
     }
         
     else if (strcmp(mode, "benchmark-queries") == 0) {

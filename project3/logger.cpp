@@ -2,11 +2,12 @@
 #include <iostream>
 #include <fstream>
 
-Logger::Logger(const std::string& filename, size_t flush_threshold) 
-    : flush_threshold(flush_threshold)  // Initialize flush threshold
+uint64_t Logger::curr_lsn = 0;
+
+Logger::Logger(const std::string& filename, uint64_t log_granularity, uint64_t checkpoint_granularity) 
+    : log_filename(filename), log_granularity(log_granularity), checkpoint_granularity(checkpoint_granularity)  // Initialize flush threshold
 {
-    log_filename = filename;
-    log_file.open(filename, std::ios::app);
+    log_file.open(log_filename, std::ofstream::out | std::ofstream::trunc);
     if (!log_file.is_open()) {
         throw std::runtime_error("Unable to open log file: " + filename);
     }
@@ -17,9 +18,9 @@ Logger::~Logger() {
     log_file.close();
 }
 
-void Logger::log(const LogRecord& record) {
+void Logger::log(const Logger::LogRecord& record) {
     log_buffer.push_back(record);  // Add the log record to the buffer
-    if (log_buffer.size() >= flush_threshold) {
+    if (log_buffer.size() >= log_granularity) {
         flush();  // Flush to disk if the buffer size exceeds the threshold
     }
 }
@@ -32,11 +33,11 @@ void Logger::flush() {
     log_buffer.clear();  // Clear the buffer after flushing
 }
 
-std::vector<LogRecord> Logger::get_log_entries() {
+std::vector<Logger::LogRecord> Logger::get_log_entries() {
     return log_buffer;  
 }
 
-std::vector<LogRecord>& Logger::get_log_buffer() {
+std::vector<Logger::LogRecord>& Logger::get_log_buffer() {
     return log_buffer;  
 }
 
@@ -47,4 +48,8 @@ void Logger::clear_log_on_disk() {
     }
     // Empty
     log_file.open(log_filename, std::ofstream::out | std::ofstream::trunc);
+}
+
+uint64_t Logger::get_checkpoint_granularity() {
+    return checkpoint_granularity;
 }

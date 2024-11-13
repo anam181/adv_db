@@ -1,4 +1,5 @@
 #include "swap_space.hpp"
+#include <fstream>
 
 
 //Methods to serialize/deserialize different kinds of objects.
@@ -101,6 +102,7 @@ void swap_space::write_back(swap_space::object *obj)
   obj->is_leaf = ctxt.is_leaf;
 
   if (obj->target_is_dirty) {
+    // std::cout << "WRITING BACK" << std::endl;
     std::string buffer = sstream.str();
 
 
@@ -118,6 +120,7 @@ void swap_space::write_back(swap_space::object *obj)
     // if (obj->version > 0)
     //   backstore->deallocate(obj->id, obj->version);
     obj->version = new_version_id;
+    objects_to_versions[obj->id] = new_version_id;
     obj->target_is_dirty = false;
   }
 }
@@ -149,19 +152,48 @@ void swap_space::maybe_evict_something(void)
 
 void swap_space::write_back_dirty_pages_info_to_disk(void)
 {
-  object *obj = NULL;
-  for (auto it = lru_pqueue.begin(); it != lru_pqueue.end(); ++it) {
-    obj = *it;
-    if (obj == NULL || !obj->target_is_dirty)
-      continue;
+    object *obj = NULL;
+    for (auto it = lru_pqueue.begin(); it != lru_pqueue.end();) {
+        obj = *it;
+        if (obj == NULL || !obj->target_is_dirty) {
+            ++it;
+            continue;
+        }
 
-    // lru_pqueue.erase(obj);
+        auto next_it = std::next(it);  // Save the next iterator
+        lru_pqueue.erase(it);          // Erase the current element
+        write_back(obj);               // Write back the object
+        
+        delete obj->target;           // Deallocate the target memory
+        obj->target = NULL;           // Nullify the target pointer
+        current_in_memory_objects--; // Decrement the count of in-memory objects
 
-    write_back(obj);
-    
-    // delete obj->target;
-    // obj->target = NULL;
-    // current_in_memory_objects--;
+        it = next_it; // Move the iterator to the next element
+    }
+}
+
+
+void swap_space::write_version_map_to_disk(void) {
+  std::string version_map_filename = "version_map.txt";
+  std::string temp_version_map_filename = "tmp_version_map.txt";
+  
+  // Open new temp file
+  std::ofstream temp_version_map_file;
+  temp_version_map_file.open(temp_version_map_filename, std::ofstream::out | std::ofstream::trunc);
+
+  // Write each log record to the file
+  temp_version_map_file << root_id << std::endl;
+  for (const auto& pair : objects_to_versions) {
+      temp_version_map_file << pair.first << ":" << pair.second << std::endl;
   }
+  temp_version_map_file.close();
+
+  // Delete old file
+  remove(version_map_filename.c_str());
+
+  // Rename temp file
+  rename(temp_version_map_filename.c_str(), version_map_filename.c_str());
+
+    
 }
 

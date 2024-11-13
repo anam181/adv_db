@@ -170,17 +170,26 @@ template<class X> void deserialize(std::iostream &fs, serialization_context &con
 
 class swap_space {
 public:
+  uint64_t root_id;
   swap_space(backing_store *bs, uint64_t n);
 
   template<class Referent> class pointer;
 
   void write_back_dirty_pages_info_to_disk(void);
+  void write_version_map_to_disk(void);
 
   //Given a heap pointer, construct a ss object around it.
   //this is used to register nodes in the ss.
   template<class Referent>
   pointer<Referent> allocate(Referent * tgt) {
     return pointer<Referent>(this, tgt);
+  }
+
+  template<class Referent>
+  pointer<Referent> allocate_root(Referent * tgt) {
+    pointer<Referent> root_pointer = pointer<Referent>(this, tgt);
+    root_id = root_pointer.target;
+    return root_pointer;
   }
 
   // This pins an object in memory for the duration of a member
@@ -476,6 +485,7 @@ private:
   //structs used in ss
   //objects is a map from targets->objects (target == obj->id)
   std::unordered_map<uint64_t, object *> objects;
+  std::unordered_map<uint64_t, uint64_t> objects_to_versions;
   std::set<object *, bool (*)(object *, object *)> lru_pqueue;
 };
 
