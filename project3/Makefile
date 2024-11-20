@@ -26,4 +26,4 @@ backing_store.o: backing_store.hpp backing_store.cpp
 logger.o: logger.cpp logger.hpp
 
 clean:
-	$(RM) *.o test test_logging_restore generate
+	$(RM) *.o test test_logging_restore generate tmpdir/*
