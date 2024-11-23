@@ -1,8 +1,6 @@
 #include "recovery.hpp"
 
-recoveryManager::recoveryManager(swap_space *sspace)
-sspace(sspace)
-{
+recoveryManager::recoveryManager(swap_space *sspace) : sspace(sspace) {
 
 }
 
@@ -12,7 +10,7 @@ void recoveryManager::recoverState() {
     // Read in Kv_store.log
     // If empty do nothing
     // Else make dictionary and find root
-    if(sspace->redbuildVersionMap()) {
+    if(sspace->rebuildVersionMap()) {
         std::cout << "ERROR: rebuilding map" << std::endl;
         return;
     }
