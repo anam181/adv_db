@@ -177,6 +177,8 @@ public:
 
   void write_back_dirty_pages_info_to_disk(void);
   void write_version_map_to_disk(void);
+  int rebuildVersionMap(void);
+  int rebuildObjectMap(void);
 
   //Given a heap pointer, construct a ss object around it.
   //this is used to register nodes in the ss.

@@ -172,7 +172,7 @@ void swap_space::write_back_dirty_pages_info_to_disk(void)
     }
 }
 
-
+// CHANGE to FLUSH
 void swap_space::write_version_map_to_disk(void) {
   std::string version_map_filename = "version_map.txt";
   std::string temp_version_map_filename = "tmp_version_map.txt";
@@ -194,6 +194,108 @@ void swap_space::write_version_map_to_disk(void) {
   // Rename temp file
   rename(temp_version_map_filename.c_str(), version_map_filename.c_str());
 
-    
 }
 
+int swap_space::rebuildVersionMap(void) {
+  // Read in file and parse out the data
+    std::ifstream file("version_map.txt");
+    if (!file.is_open()) {
+        std::cerr << "Error: Could not open file.\n";
+        return 1;
+    }
+
+    std::string line;
+    int lineCount = 0;
+
+    while (std::getline(file, line)) {
+        if(lineCount == 0) {
+            root_id = std::stoull(line);
+        }
+        else {
+            size_t pos = line.find(':');
+
+            if (pos != std::string::npos) {
+                std::string key = line.substr(0, pos);
+                std::string value = line.substr(pos + 1);
+
+                objects_to_versions[std::stoull(key)] = std::stoull(value);
+            } else {
+                std::cerr << "Delimiter ':' not found!" << std::endl;
+                return 1;
+            }
+        }
+    }
+
+    file.close();
+    return 0;
+}
+
+
+int swap_space::rebuildObjectMap(void) {
+  // Loop through all keys in map
+  for (const auto& pair : objects_to_versions) {
+    std::cout << pair.first << std::endl; // Access the key with pair.first
+    // Make object for the key
+    object *newObj = new object(this, nullptr);
+
+    // serializable * target;
+    // uint64_t id;
+    // uint64_t version;
+    // bool is_leaf;
+    // uint64_t refcount;
+    // uint64_t last_access;
+    // bool target_is_dirty;
+    // uint64_t pincount;
+    newObj->id = pair.first;
+    newObj->version = pair.second;
+    newObj->target_is_dirty = false;
+
+    // Make filename
+    string filepath = "./tmpdir/" + std::to_string(pair.first) + '_' + std::to_string(pair.second);
+
+    // Open the file
+    std::ifstream inputFile(filepath); // Replace "your_file.txt" with your file name
+    if (!inputFile) {
+        std::cerr << "Failed to open the file. id:" << pair.first << " version: " << pair.second << std::endl;
+        return 1;
+    }
+
+    std::string line;
+    int lineCount = 0;
+    int pivotCount = -1; // Default in case parsing fails
+
+    // Read the file line by line
+    while (std::getline(inputFile, line)) {
+        lineCount++;
+
+        if (lineCount == 2) { // Process the second line
+            std::istringstream iss(line);
+            std::string word;
+            if (iss >> word && word == "map") { // Ensure the line starts with "map"
+                if (iss >> pivotCount) { // Extract the number after "map"
+                    std::cout << "Extracted number: " << pivotCount << std::endl;
+                } else {
+                    std::cerr << "Failed to extract the number after 'map'." << std::endl;
+                }
+            }
+            break; // Exit the loop after processing the second line
+        }
+    }
+
+    inputFile.close(); // Close the file
+
+    // Check if file has pivots
+    if(pivotCount == -1) {
+      std::cerr << "Error: Could not find pivot count for . id:" << pair.first << " version: " << pair.second << "\n";
+      return 1;
+    }
+    // Set isleaf
+    newObj->is_leaf = pivotCount == 0;
+
+    // Set new object in map
+    objects[pair.first] = newObj;
+  }
+  
+  return 0;
+
+}
