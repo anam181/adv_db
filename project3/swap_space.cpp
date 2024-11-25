@@ -196,9 +196,9 @@ void swap_space::write_version_map_to_disk(void) {
 
 }
 
-int swap_space::rebuildVersionMap(void) {
+int swap_space::rebuildVersionMap(std::string filename) {
   // Read in file and parse out the data
-    std::ifstream file("version_map.txt");
+    std::ifstream file(filename);
     if (!file.is_open()) {
         std::cerr << "Error: Could not open file.\n";
         return 1;
@@ -231,7 +231,7 @@ int swap_space::rebuildVersionMap(void) {
 }
 
 
-int swap_space::rebuildObjectMap(void) {
+int swap_space::rebuildObjectMap() {
   // Loop through all keys in map
   for (const auto& pair : objects_to_versions) {
     std::cout << pair.first << std::endl; // Access the key with pair.first
@@ -251,7 +251,7 @@ int swap_space::rebuildObjectMap(void) {
     newObj->target_is_dirty = false;
 
     // Make filename
-    string filepath = "./tmpdir/" + std::to_string(pair.first) + '_' + std::to_string(pair.second);
+    std::string filepath = "./tmpdir/" + std::to_string(pair.first) + '_' + std::to_string(pair.second);
 
     // Open the file
     std::ifstream inputFile(filepath); // Replace "your_file.txt" with your file name

@@ -7,15 +7,18 @@
 #include <fstream>
 #include <string>
 #include "swap_space.hpp"
+#include "betree.hpp"
 
+template <class Key, class Value>
 class recoveryManager {
-    std::unordered_map<uint64_t, uint64_t> objects_to_versions;
     public:
-        recoveryManager(swap_space *sspace);
+        recoveryManager(swap_space *sspace, betree<Key, Value> *betree_);
         void recoverState();
     private:
         swap_space *sspace;
+        betree<Key, Value> *betree_;
         int replayLogs();
+        int readMasterLog(std::string& versionMapFilename, std::string& logFilename);
 };
 
 #endif
