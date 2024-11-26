@@ -26,8 +26,16 @@ void one_file_per_object_backing_store::allocate(uint64_t obj_id, uint64_t versi
 
 //delete the file associated with an specific version of a node
 void one_file_per_object_backing_store::deallocate(uint64_t obj_id, uint64_t version) {
-  std::string filename = get_filename(obj_id, version);
-  assert(unlink(filename.c_str()) == 0);
+    std::string filename = get_filename(obj_id, version);
+    if (unlink(filename.c_str()) != 0) {
+        if (errno == ENOENT) {
+            std::cerr << "Warning: File not found for deletion: " << filename << std::endl;
+        } else {
+            std::cerr << "Error: Failed to delete file: " << filename << ", Error: " << errno << std::endl;
+        }
+    } else {
+        std::cout << "File deleted successfully: " << filename << std::endl;
+    }
 }
 
 //return filestream corresponding to an item. Needed for deserialization.

@@ -2,8 +2,8 @@
 
 # STUDENT PARAMETERS
 # change where your logging file is so it can be deleted
-LOGGING_FILE=loggingFile.bin
-CHECKPOINT_POSITION_FILE=loggingFileStatus.txt
+LOGGING_FILE=kv_store.log
+CHECKPOINT_POSITION_FILE=version_map.txt
 
 ## GLOBAL PARAMETERS
 TREE_DIRECTORY=tmpdir
@@ -21,7 +21,7 @@ mkdir -p $TREE_DIRECTORY
 # delete everything inside
 rm -f $TREE_DIRECTORY/*
 # remove the logging file: STUDENTS CHANGE THIS 
-rm $LOGGING_FILE $CHECKPOINT_POSITION_FILE
+# rm $LOGGING_FILE $CHECKPOINT_POSITION_FILE
 
 ####
 #### TEST FOR CRASH AND RECOVERY

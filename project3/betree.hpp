@@ -668,14 +668,14 @@ public:
     operation_count(0)
     {
       root = ss->allocate_root(new node);
-      //recoveryManager recoverManager_(sspace, this);
-      // recoverManager_.recoverState();
+      recoveryManager recoverManager_(sspace, this);
+      recoverManager_.recoverState();
     }
     
 
     void checkpoint() {
       // Perform checkpointing only after a certain number of operations (threshold)
-      // std::cout << "Performing checkpoint..." << std::endl;
+      std::cout << "Performing checkpoint..." << std::endl;
       // Flush logs
       logger.flush();
 
@@ -688,9 +688,11 @@ public:
       // Clear the log on disk
       logger.clear_log_on_disk();
 
+      // ss->delete_old_version();
+
       // Push Checkpoint entry
       //Logger::LogRecord record = {static_cast<OperationType>(3), 0, "", next_timestamp}; 
-	  Logger::LogRecord record = {3, 0, "", next_timestamp}; 
+	    Logger::LogRecord record = {3, 0, "", next_timestamp}; 
       logger.log(record);
 
       
@@ -724,19 +726,19 @@ public:
 
   void insert(Key k, Value v)
   {
-	std::cout << "Inserting: Key = " << k << ", Value = " << v << std::endl;
+	  std::cout << "Inserting: Key = " << k << ", Value = " << v << std::endl;
     upsert(INSERT, k, v);
   }
 
   void update(Key k, Value v)
   {
-	std::cout << "Updating: Key = " << k << ", New Value = " << v << std::endl;
+	  std::cout << "Updating: Key = " << k << ", New Value = " << v << std::endl;
     upsert(UPDATE, k, v);
   }
 
   void erase(Key k)
   {
-	std::cout << "Deleting: Key = " << k << std::endl;
+	  std::cout << "Deleting: Key = " << k << std::endl;
     upsert(DELETE, k, default_value);
   }
   
@@ -868,6 +870,27 @@ public:
     return iterator(*this);
   }
 
+
+  Key parseStringKey(const std::string& str) {
+      Key key;
+      std::istringstream iss(str);
+      if (!(iss >> key)) {
+          throw std::invalid_argument("Failed to parse string into the desired type");
+      }
+      return key;
+  }
+
+
+  Value parseStringValue(const std::string& str) {
+      Value value;
+      std::istringstream iss(str);
+      if (!(iss >> value)) {
+          throw std::invalid_argument("Failed to parse string into the desired type");
+      }
+      return value;
+  }
+
+
   class recoveryManager {
         swap_space *sspace;
         betree<Key, Value> *betree_;
@@ -932,61 +955,64 @@ public:
           // apply logs after checkpoint
           // betree_->upsert(1, Key k, Value v)
 		  
-		    std::ifstream logFile("Kv_store.log");
-			if (!logFile.is_open()) {
-				std::cerr << "Error: Unable to open log file: " << std::endl;
-				return;
-			}
+          std::ifstream logFile("kv_store.log");
+          if (!logFile.is_open()) {
+            std::cerr << "Error: Unable to open log file: " << std::endl;
+            return;
+          }
 
-			std::string line;
-			while (std::getline(logFile, line)) {
+          std::cout << "Replaying Logs:" << std::endl;
+          std::string line;
+          while (std::getline(logFile, line)) {
+            std::cout << line << std::endl;
+            int lsn;
+            int operation = 4;
+            Key key;
+            Value value;  
+            unsigned long timestamp;
 
-				int lsn, operation, key;
-				std::string value;
-				unsigned long timestamp;
-				
-				size_t pos = line.find("\"operation\":");
-				if (pos != std::string::npos) {
-					operation = std::stoi(line.substr(pos + 12, line.find(",", pos) - pos - 12));
-				}
+            size_t pos = line.find("\"operation\":");
+            if (pos != std::string::npos) {
+              operation = std::stoi(line.substr(pos + 12, line.find(",", pos) - pos - 12));
+            }
 
-				pos = line.find("\"key\":");
-				if (pos != std::string::npos) {
-					key = std::stoi(line.substr(pos + 6, line.find(",", pos) - pos - 6));
-				}
+            pos = line.find("\"key\":");
+            if (pos != std::string::npos) {
+              key = betree_->parseStringKey(line.substr(pos + 6, line.find(",", pos) - pos - 6));
+            }
 
-				pos = line.find("\"value\":");
-				if (pos != std::string::npos) {
-					size_t start = line.find("\"", pos + 8) + 1;
-					size_t end = line.find("\"", start);
-					value = line.substr(start, end - start);
-				}
+            pos = line.find("\"value\":");
+            if (pos != std::string::npos) {
+              size_t start = line.find("\"", pos + 8) + 1;
+              size_t end = line.find("\"", start);
+              value = betree_->parseStringValue(line.substr(start, end - start));
+            }
 
-				pos = line.find("\"timestamp\":");
-				if (pos != std::string::npos) {
-					timestamp = std::stoul(line.substr(pos + 12));
-				}
+            pos = line.find("\"timestamp\":");
+            if (pos != std::string::npos) {
+              timestamp = std::stoul(line.substr(pos + 12));
+            }
 
-					switch (operation) {
-						case 0: 
-							insert(key, value);
-							break;
-						case 1:
-							update(key, value);
-							break;
-						case 2:
-							erase(key);
-							break;
-						default:
-							std::cerr << "Error: Unknown operation type: " << operation << std::endl;
-							break;
-					}
+            switch (operation) {
+              case 0: 
+                betree_->insert(key, value);
+                break;
+              case 1:
+                betree_->update(key, value);
+                break;
+              case 2:
+                betree_->erase(key);
+                break;
+              case 3:
+                break;
+              default:
+                std::cerr << "Error: Unknown operation type: " << operation << std::endl;
+                break;
+            }
 
-			logFile.close();
-				  
-				}
-
-		  };
+            logFile.close();
+          }
+        };
 		  
   };
 };
