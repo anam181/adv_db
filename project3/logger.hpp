@@ -50,6 +50,7 @@ private:
     const uint64_t log_granularity;  // Flush threshold, configurable through the constructor
     const uint64_t checkpoint_granularity;
     static u_int64_t curr_lsn;
+    void print_log_on_disk();
 };
 
 #endif

@@ -921,6 +921,7 @@ public:
         }
     private:
         int readMasterLog(std::string& versionMapFilename, std::string& logFilename) {
+          std::cout << "Reading master record" << std::endl;
           std::ifstream file("master.log");
           if (!file.is_open()) {
               std::cerr << "Error: Could not open master log.\n";
@@ -962,14 +963,15 @@ public:
           }
 
           std::cout << "Replaying Logs:" << std::endl;
+          int lsn;
+          int operation = 4;
+          std::string value;  
+          uint64_t key;
+          unsigned long timestamp;
           std::string line;
           while (std::getline(logFile, line)) {
             std::cout << line << std::endl;
-            int lsn;
-            int operation = 4;
-            Key key;
-            Value value;  
-            unsigned long timestamp;
+            value = "";
 
             size_t pos = line.find("\"operation\":");
             if (pos != std::string::npos) {
@@ -978,21 +980,21 @@ public:
 
             pos = line.find("\"key\":");
             if (pos != std::string::npos) {
-              key = betree_->parseStringKey(line.substr(pos + 6, line.find(",", pos) - pos - 6));
+              key = std::stoull(line.substr(pos + 6, line.find(",", pos) - pos - 6));
             }
 
             pos = line.find("\"value\":");
             if (pos != std::string::npos) {
               size_t start = line.find("\"", pos + 8) + 1;
               size_t end = line.find("\"", start);
-              value = betree_->parseStringValue(line.substr(start, end - start));
+              value = line.substr(start, end - start);
             }
 
             pos = line.find("\"timestamp\":");
             if (pos != std::string::npos) {
               timestamp = std::stoul(line.substr(pos + 12));
             }
-
+            std::cout<< "HERE: " << operation << std::endl;
             switch (operation) {
               case 0: 
                 betree_->insert(key, value);
@@ -1010,8 +1012,9 @@ public:
                 break;
             }
 
-            logFile.close();
           }
+          logFile.close();
+
         };
 		  
   };
