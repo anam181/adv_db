@@ -30,6 +30,7 @@ void Logger::flush() {
     for (const auto& record : log_buffer) {
         log_file << record.serialize() << std::endl;
     }
+    log_file.flush();
     log_buffer.clear();  // Clear the buffer after flushing
 }
 

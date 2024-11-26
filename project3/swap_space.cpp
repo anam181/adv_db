@@ -188,9 +188,6 @@ void swap_space::write_version_map_to_disk(void) {
   }
   temp_version_map_file.close();
 
-  // Delete old file
-  remove(version_map_filename.c_str());
-
   // Rename temp file
   rename(temp_version_map_filename.c_str(), version_map_filename.c_str());
 
