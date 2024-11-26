@@ -198,43 +198,54 @@ void swap_space::write_version_map_to_disk(void) {
 
 int swap_space::rebuildVersionMap(std::string filename) {
   // Read in file and parse out the data
-    std::ifstream file(filename);
-    if (!file.is_open()) {
-        std::cerr << "Error: Could not open file.\n";
-        return 1;
-    }
+  std::cout << "Rebuilding version map" << std::endl;
+  std::ifstream file(filename);
+  if (!file.is_open()) {
+      std::cerr << "Error: Could not open file.\n";
+      return 1;
+  }
 
-    std::string line;
-    int lineCount = 0;
+  std::string line;
+  int lineCount = 0;
+  std::cout << "Reading Version File:" << std::endl;
+  while (std::getline(file, line)) {
+    std::cout << line << std::endl;
+      if(lineCount == 0) {
+          root_id = std::stoull(line);
+      }
+      else {
+          size_t pos = line.find(':');
 
-    while (std::getline(file, line)) {
-        if(lineCount == 0) {
-            root_id = std::stoull(line);
-        }
-        else {
-            size_t pos = line.find(':');
+          if (pos != std::string::npos) {
+              std::string key = line.substr(0, pos);
+              std::string value = line.substr(pos + 1);
+              std::cout << "Read out:" << key << ":" << value << std::endl;
+              objects_to_versions[std::stoull(key)] = std::stoull(value);
+          } else {
+              std::cerr << "Delimiter ':' not found!" << std::endl;
+              return 1;
+          }
+      }
+      lineCount++;
+  }
 
-            if (pos != std::string::npos) {
-                std::string key = line.substr(0, pos);
-                std::string value = line.substr(pos + 1);
+  file.close();
 
-                objects_to_versions[std::stoull(key)] = std::stoull(value);
-            } else {
-                std::cerr << "Delimiter ':' not found!" << std::endl;
-                return 1;
-            }
-        }
-    }
+  std::cout << "NEW version Map" << std::endl;
+  for (const auto& pair : objects_to_versions) {
+    std::cout << pair.first << ":" << pair.second << std::endl;
+  }
 
-    file.close();
-    return 0;
+  return 0;
 }
 
 
 int swap_space::rebuildObjectMap() {
+  std::cout << "Rebuilding Object map" << std::endl;
+  
   // Loop through all keys in map
   for (const auto& pair : objects_to_versions) {
-    std::cout << pair.first << std::endl; // Access the key with pair.first
+    std::cout << "Reading Object File:" << pair.first << "_" << pair.second << std::endl;
     // Make object for the key
     object *newObj = new object(this, nullptr);
 
@@ -294,6 +305,11 @@ int swap_space::rebuildObjectMap() {
 
     // Set new object in map
     objects[pair.first] = newObj;
+  }
+
+  std::cout << "NEW Object Map" << std::endl;
+  for (const auto& pair : objects) {
+    std::cout << pair.first << ":" << pair.second->is_leaf << std::endl;
   }
   
   return 0;

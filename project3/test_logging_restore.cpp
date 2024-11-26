@@ -205,6 +205,17 @@ void benchmark_queries(betree<uint64_t, std::string> &b, uint64_t nops,
     printf("# overall: %ld %ld\n", nops, overall_timer);
 }
 
+void custom_recovery(uint64_t max_node_size, uint64_t min_flush_size, uint64_t persistence_granularity, uint64_t checkpoint_granularity, one_file_per_object_backing_store ofpobs, uint64_t cache_size) {
+    swap_space sspace(&ofpobs, cache_size);
+    Logger logger("kv_store.log", persistence_granularity, checkpoint_granularity);
+    betree<uint64_t, std::string> tempB(&sspace, max_node_size, max_node_size/4, min_flush_size, logger);
+    
+    for(int i = 0; i < 4; i++) {
+        tempB.insert(i, std::to_string(i) + " Testing");
+    }
+
+}
+
 int main(int argc, char **argv) {
     char *mode = NULL;
     uint64_t max_node_size = DEFAULT_TEST_MAX_NODE_SIZE;
@@ -345,7 +356,7 @@ int main(int argc, char **argv) {
 
     if (mode == NULL ||
         (strcmp(mode, "test") != 0 && strcmp(mode, "benchmark-upserts") != 0 &&
-         strcmp(mode, "benchmark-queries") != 0)) {
+         strcmp(mode, "benchmark-queries") != 0 && strcmp(mode, "custom-recovery") != 0)) {
         std::cerr << "Must specify a mode of \"test\" or \"benchmark\""
                   << std::endl;
         usage(argv[0]);
@@ -415,6 +426,7 @@ int main(int argc, char **argv) {
      *           note why.
      *
      */
+    
 
     if (strcmp(mode, "test") == 0)
         test(b, nops, number_of_distinct_keys, script_input, script_output);
@@ -428,6 +440,10 @@ int main(int argc, char **argv) {
         std::cerr << "benchmark-queries is not available for this testing program!" << std::endl;
         return 0;
         // benchmark_queries(b, nops, number_of_distinct_keys, random_seed);
+    }
+
+    else if(strcmp(mode, "custom-recovery") == 0) {
+        custom_recovery(max_node_size, min_flush_size, persistence_granularity, checkpoint_granularity, ofpobs, cache_size);
     }
         
 
