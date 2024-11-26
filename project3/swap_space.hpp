@@ -177,6 +177,7 @@ public:
 
   void write_back_dirty_pages_info_to_disk(void);
   void write_version_map_to_disk(void);
+  void delete_old_version(void);
   int rebuildVersionMap(std::string filename);
   int rebuildObjectMap();
 

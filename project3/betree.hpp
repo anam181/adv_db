@@ -52,6 +52,9 @@
 
 #include <map>
 #include <vector>
+#include <string>
+#include <iostream>
+#include <sstream>
 #include <cassert>
 #include "swap_space.hpp"
 #include "backing_store.hpp"
@@ -665,7 +668,7 @@ public:
     operation_count(0)
     {
       root = ss->allocate_root(new node);
-      recoveryManager recoverManager_(sspace, this);
+      //recoveryManager recoverManager_(sspace, this);
       // recoverManager_.recoverState();
     }
     
@@ -686,7 +689,8 @@ public:
       logger.clear_log_on_disk();
 
       // Push Checkpoint entry
-      Logger::LogRecord record = {static_cast<OperationType>(3), 0, "", next_timestamp}; 
+      //Logger::LogRecord record = {static_cast<OperationType>(3), 0, "", next_timestamp}; 
+	  Logger::LogRecord record = {3, 0, "", next_timestamp}; 
       logger.log(record);
 
       
@@ -700,8 +704,9 @@ public:
     // Insert the specified message and handle a split of the root if it occurs.
     void upsert(int opcode, Key k, Value v) {
         operation_count++;
-        // std::cout << "Upserting: " << opcode << " " << k << " with value: " << v << "Op count" << operation_count <<std::endl;
-        Logger::LogRecord record = {static_cast<OperationType>(opcode), k, v, next_timestamp++}; 
+        std::cout << "Upserting: " << opcode << " " << k << " with value: " << v << "Op count" << operation_count <<std::endl;
+        //Logger::LogRecord record = {static_cast<OperationType>(opcode), k, v, next_timestamp++}; 
+		Logger::LogRecord record = {opcode, k, v, next_timestamp++}; 
         logger.log(record);
 
         message_map tmp;
@@ -719,19 +724,19 @@ public:
 
   void insert(Key k, Value v)
   {
-	// std::cout << "Inserting: Key = " << k << ", Value = " << v << std::endl;
+	std::cout << "Inserting: Key = " << k << ", Value = " << v << std::endl;
     upsert(INSERT, k, v);
   }
 
   void update(Key k, Value v)
   {
-	// std::cout << "Updating: Key = " << k << ", New Value = " << v << std::endl;
+	std::cout << "Updating: Key = " << k << ", New Value = " << v << std::endl;
     upsert(UPDATE, k, v);
   }
 
   void erase(Key k)
   {
-	// std::cout << "Deleting: Key = " << k << std::endl;
+	std::cout << "Deleting: Key = " << k << std::endl;
     upsert(DELETE, k, default_value);
   }
   
@@ -884,9 +889,9 @@ public:
               return;
           }
           // Rebuild tree using root and dictionary
-          if(sspace->root_id != NULL) {
+          //if(sspace->root_id != NULL) {
               sspace->rebuildObjectMap();
-          }
+          //}
           // Read log only apply log entries after checkpoint
 
           replayLogs();
@@ -926,7 +931,62 @@ public:
           // Check if checkpoint is in file
           // apply logs after checkpoint
           // betree_->upsert(1, Key k, Value v)
-        }
+		  
+		    std::ifstream logFile("Kv_store.log");
+			if (!logFile.is_open()) {
+				std::cerr << "Error: Unable to open log file: " << std::endl;
+				return;
+			}
 
+			std::string line;
+			while (std::getline(logFile, line)) {
+
+				int lsn, operation, key;
+				std::string value;
+				unsigned long timestamp;
+				
+				size_t pos = line.find("\"operation\":");
+				if (pos != std::string::npos) {
+					operation = std::stoi(line.substr(pos + 12, line.find(",", pos) - pos - 12));
+				}
+
+				pos = line.find("\"key\":");
+				if (pos != std::string::npos) {
+					key = std::stoi(line.substr(pos + 6, line.find(",", pos) - pos - 6));
+				}
+
+				pos = line.find("\"value\":");
+				if (pos != std::string::npos) {
+					size_t start = line.find("\"", pos + 8) + 1;
+					size_t end = line.find("\"", start);
+					value = line.substr(start, end - start);
+				}
+
+				pos = line.find("\"timestamp\":");
+				if (pos != std::string::npos) {
+					timestamp = std::stoul(line.substr(pos + 12));
+				}
+
+					switch (operation) {
+						case 0: 
+							insert(key, value);
+							break;
+						case 1:
+							update(key, value);
+							break;
+						case 2:
+							erase(key);
+							break;
+						default:
+							std::cerr << "Error: Unknown operation type: " << operation << std::endl;
+							break;
+					}
+
+			logFile.close();
+				  
+				}
+
+		  };
+		  
   };
 };

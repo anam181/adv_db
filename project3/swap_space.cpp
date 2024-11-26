@@ -196,6 +196,27 @@ void swap_space::write_version_map_to_disk(void) {
 
 }
 
+void swap_space::delete_old_version(void) {
+    for (const auto& entry : objects_to_versions) {
+        uint64_t object_id = entry.first;
+        uint64_t current_version = entry.second;
+
+        // Check for and delete all older versions
+        if (current_version > 1) { // Versions start at 1
+            for (uint64_t old_version = 1; old_version < current_version; ++old_version) {
+                // Debug message
+                debug(std::cout << "Deleting old version: Object ID " << object_id 
+                                << ", Version " << old_version << std::endl);
+
+                // Delete the old version from the backing store
+                if (backstore) {
+                    backstore->deallocate(object_id, old_version);
+                }
+            }
+        }
+    }
+}
+
 int swap_space::rebuildVersionMap(std::string filename) {
   // Read in file and parse out the data
   std::cout << "Rebuilding version map" << std::endl;

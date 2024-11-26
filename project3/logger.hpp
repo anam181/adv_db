@@ -7,17 +7,17 @@
 #include <stdexcept>
 #include <cstdint>
 
-enum OperationType {
-    INSERT, // 0
-    UPDATE, // 1
-    DELETE,  // 2
-    CHECKPOINT // 3
-};
+//enum OperationType {
+//    INSERT, // 0
+//    UPDATE, // 1
+//    DELETE,  // 2
+//    CHECKPOINT // 3
+//};
 
 class Logger {
 public:
     struct LogRecord {
-        OperationType operation;
+        int opcode;
         uint64_t key;           
         std::string value;      
         uint64_t timestamp;     
@@ -25,7 +25,7 @@ public:
         // How it will be written to txt file - JSON format for readability
         std::string serialize() const {
             return "{\"lsn\":" + std::to_string(curr_lsn++) + 
-                ",\"operation\":" + std::to_string(operation) +
+                ",\"operation\":" + std::to_string(opcode) +
                 ", \"key\":" + std::to_string(key) +
                 ", \"value\":\"" + value +
                 "\", \"timestamp\":" + std::to_string(timestamp) + "}";
