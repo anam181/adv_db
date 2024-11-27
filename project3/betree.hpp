@@ -688,7 +688,7 @@ public:
       // Clear the log on disk
       logger.clear_log_on_disk();
 
-      // ss->delete_old_version();
+      ss->delete_old_version();
 
       // Push Checkpoint entry
       //Logger::LogRecord record = {static_cast<OperationType>(3), 0, "", next_timestamp}; 

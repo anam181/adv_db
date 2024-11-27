@@ -183,6 +183,7 @@ void swap_space::write_version_map_to_disk(void) {
 
   // Write each log record to the file
   temp_version_map_file << root_id << std::endl;
+  temp_version_map_file << next_id << std::endl;
   for (const auto& pair : objects_to_versions) {
       temp_version_map_file << pair.first << ":" << pair.second << std::endl;
   }
@@ -229,7 +230,10 @@ int swap_space::rebuildVersionMap(std::string filename) {
   while (std::getline(file, line)) {
     std::cout << line << std::endl;
       if(lineCount == 0) {
-          root_id = std::stoull(line);
+        root_id = std::stoull(line);
+      }
+      else if(lineCount == 1) {
+        next_id = std::stoull(line);
       }
       else {
           size_t pos = line.find(':');
