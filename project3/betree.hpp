@@ -667,9 +667,13 @@ public:
     logger(logger),
     operation_count(0)
     {
+      std::cout << "BEFORE: " <<  std::endl;
+      logger.print_log_on_disk();
       root = ss->allocate_root(new node);
       recoveryManager recoverManager_(sspace, this);
       recoverManager_.recoverState();
+      std::cout << "AFTER: " << std::endl;
+      logger.print_log_on_disk();
     }
     
 
@@ -695,7 +699,6 @@ public:
 	    Logger::LogRecord record = {3, 0, "", next_timestamp}; 
       logger.log(record);
 
-      
       operation_count = 0;
     }
 
@@ -704,12 +707,15 @@ public:
     }
 
     // Insert the specified message and handle a split of the root if it occurs.
-    void upsert(int opcode, Key k, Value v) {
+    void upsert(int opcode, Key k, Value v, bool do_log) {
         operation_count++;
-        std::cout << "Upserting: " << opcode << " " << k << " with value: " << v << "Op count" << operation_count <<std::endl;
+        std::cout << "Opcount:" << operation_count << std::endl;
+        // std::cout << "Upserting: " << opcode << " " << k << " with value: " << v << "Op count" << operation_count <<std::endl;
         //Logger::LogRecord record = {static_cast<OperationType>(opcode), k, v, next_timestamp++}; 
-		Logger::LogRecord record = {opcode, k, v, next_timestamp++}; 
-        logger.log(record);
+        if(do_log) {
+          Logger::LogRecord record = {opcode, k, v, next_timestamp++}; 
+          logger.log(record);
+        }
 
         message_map tmp;
         tmp[MessageKey<Key>(k, next_timestamp)] = Message<Value>(opcode, v);
@@ -724,22 +730,22 @@ public:
         }
     }
 
-  void insert(Key k, Value v)
+  void insert(Key k, Value v, bool do_log = true)
   {
-	  std::cout << "Inserting: Key = " << k << ", Value = " << v << std::endl;
-    upsert(INSERT, k, v);
+	  // std::cout << "Inserting: Key = " << k << ", Value = " << v << std::endl;
+    upsert(INSERT, k, v, do_log);
   }
 
-  void update(Key k, Value v)
+  void update(Key k, Value v, bool do_log = true)
   {
-	  std::cout << "Updating: Key = " << k << ", New Value = " << v << std::endl;
-    upsert(UPDATE, k, v);
+	  // std::cout << "Updating: Key = " << k << ", New Value = " << v << std::endl;
+    upsert(UPDATE, k, v, do_log);
   }
 
-  void erase(Key k)
+  void erase(Key k, bool do_log = true)
   {
-	  std::cout << "Deleting: Key = " << k << std::endl;
-    upsert(DELETE, k, default_value);
+	  // std::cout << "Deleting: Key = " << k << std::endl;
+    upsert(DELETE, k, default_value, do_log);
   }
   
   Value query(Key k)
@@ -925,7 +931,7 @@ public:
           std::ifstream file("master.log");
           if (!file.is_open()) {
               std::cerr << "Error: Could not open master log.\n";
-              return 1;
+              assert(false);
           }
 
           std::string line;
@@ -963,6 +969,7 @@ public:
           }
 
           std::cout << "Replaying Logs:" << std::endl;
+          int logReplayCount = 0;
           int lsn;
           int operation = 4;
           std::string value;  
@@ -970,7 +977,8 @@ public:
           unsigned long timestamp;
           std::string line;
           while (std::getline(logFile, line)) {
-            std::cout << line << std::endl;
+            // std::cout << line << std::endl;
+            logReplayCount++;
             value = "";
 
             size_t pos = line.find("\"operation\":");
@@ -994,16 +1002,16 @@ public:
             if (pos != std::string::npos) {
               timestamp = std::stoul(line.substr(pos + 12));
             }
-            std::cout<< "HERE: " << operation << std::endl;
+            // std::cout<< "Replaying Operation!: " << operation << std::endl;
             switch (operation) {
               case 0: 
-                betree_->insert(key, value);
+                betree_->insert(key, value, false);
                 break;
               case 1:
-                betree_->update(key, value);
+                betree_->update(key, value, false);
                 break;
               case 2:
-                betree_->erase(key);
+                betree_->erase(key, false);
                 break;
               case 3:
                 break;
@@ -1014,7 +1022,7 @@ public:
 
           }
           logFile.close();
-
+          std::cout << "REPLAY COUNT:" << logReplayCount << std::endl;
         };
 		  
   };

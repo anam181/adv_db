@@ -159,7 +159,7 @@ void swap_space::write_back_dirty_pages_info_to_disk(void)
             ++it;
             continue;
         }
-
+        std::cout << "WRITING BACK" << std::endl;
         auto next_it = std::next(it);  // Save the next iterator
         lru_pqueue.erase(it);          // Erase the current element
         write_back(obj);               // Write back the object
@@ -221,7 +221,7 @@ int swap_space::rebuildVersionMap(std::string filename) {
   std::ifstream file(filename);
   if (!file.is_open()) {
       std::cerr << "Error: Could not open file.\n";
-      return 1;
+      assert(false);
   }
 
   std::string line;
@@ -245,7 +245,7 @@ int swap_space::rebuildVersionMap(std::string filename) {
               objects_to_versions[std::stoull(key)] = std::stoull(value);
           } else {
               std::cerr << "Delimiter ':' not found!" << std::endl;
-              return 1;
+              assert(false);
           }
       }
       lineCount++;
@@ -282,15 +282,18 @@ int swap_space::rebuildObjectMap() {
     newObj->id = pair.first;
     newObj->version = pair.second;
     newObj->target_is_dirty = false;
+    newObj->refcount = 0;
+    newObj->last_access = UINT64_MAX;
+    newObj->pincount = 0;
 
     // Make filename
     std::string filepath = "./tmpdir/" + std::to_string(pair.first) + '_' + std::to_string(pair.second);
 
     // Open the file
-    std::ifstream inputFile(filepath); // Replace "your_file.txt" with your file name
+    std::ifstream inputFile(filepath);
     if (!inputFile) {
         std::cerr << "Failed to open the file. id:" << pair.first << " version: " << pair.second << std::endl;
-        return 1;
+        assert(false);
     }
 
     std::string line;
@@ -309,6 +312,7 @@ int swap_space::rebuildObjectMap() {
                     std::cout << "Extracted number: " << pivotCount << std::endl;
                 } else {
                     std::cerr << "Failed to extract the number after 'map'." << std::endl;
+                    assert(false);
                 }
             }
             break; // Exit the loop after processing the second line
@@ -320,7 +324,7 @@ int swap_space::rebuildObjectMap() {
     // Check if file has pivots
     if(pivotCount == -1) {
       std::cerr << "Error: Could not find pivot count for . id:" << pair.first << " version: " << pair.second << "\n";
-      return 1;
+      assert(false);
     }
     // Set isleaf
     newObj->is_leaf = pivotCount == 0;

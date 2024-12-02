@@ -61,9 +61,12 @@ uint64_t Logger::get_checkpoint_granularity() {
 
 void Logger::print_log_on_disk() {
     std::string line;
+    int count = 0;
     std::ifstream file(log_filename);
     std::cout << "Printing log file" << std::endl;
     while (std::getline(file, line)) {
-        std::cout << line << std::endl;
+        count++;
+        // std::cout << line << std::endl;
     }
+    std::cout << count << std::endl;
 }

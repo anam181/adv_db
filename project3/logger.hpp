@@ -41,7 +41,9 @@ public:
     std::vector<Logger::LogRecord>& get_log_buffer(); // Get log buffer for external use
 	std::vector<Logger::LogRecord> get_log_entries();
     uint64_t get_checkpoint_granularity();
-    void clear_log();                        
+    void clear_log();                    
+    void print_log_on_disk();
+
 
 private:
     std::string log_filename;
@@ -50,7 +52,6 @@ private:
     const uint64_t log_granularity;  // Flush threshold, configurable through the constructor
     const uint64_t checkpoint_granularity;
     static u_int64_t curr_lsn;
-    void print_log_on_disk();
 };
 
 #endif
