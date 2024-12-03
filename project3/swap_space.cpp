@@ -131,6 +131,7 @@ void swap_space::write_back(swap_space::object *obj)
 //pull objects with low counts first to try and find an object with pincount 0.
 void swap_space::maybe_evict_something(void)
 {
+  // std::cout << "MAYBE EVICT SOMETHING" << std::endl;
   while (current_in_memory_objects > max_in_memory_objects) {
     object *obj = NULL;
     for (auto it = lru_pqueue.begin(); it != lru_pqueue.end(); ++it)
@@ -180,12 +181,15 @@ void swap_space::write_version_map_to_disk(void) {
   // Open new temp file
   std::ofstream temp_version_map_file;
   temp_version_map_file.open(temp_version_map_filename, std::ofstream::out | std::ofstream::trunc);
-
+  std::cout << "VERSION MAP AT CHECKPOINT" << std::endl;
+  std::cout << root_id << std::endl;
+  std::cout << next_id << std::endl;
   // Write each log record to the file
   temp_version_map_file << root_id << std::endl;
   temp_version_map_file << next_id << std::endl;
   for (const auto& pair : objects_to_versions) {
       temp_version_map_file << pair.first << ":" << pair.second << std::endl;
+      std::cout << pair.first << ":" << pair.second << std::endl;
   }
   temp_version_map_file.close();
 
@@ -213,9 +217,12 @@ void swap_space::delete_old_version(void) {
             }
         }
     }
+
+    std::cout << "NEXTID AFTER CHECKPOINT: " << next_id << std::endl;
 }
 
-int swap_space::rebuildVersionMap(std::string filename) {
+
+int swap_space::rebuildVersionMap(std::string filename, uint64_t& root_id, uint64_t& next) {
   // Read in file and parse out the data
   std::cout << "Rebuilding version map" << std::endl;
   std::ifstream file(filename);
@@ -230,10 +237,12 @@ int swap_space::rebuildVersionMap(std::string filename) {
   while (std::getline(file, line)) {
     std::cout << line << std::endl;
       if(lineCount == 0) {
+        std::cout << line << std::endl;
         root_id = std::stoull(line);
       }
       else if(lineCount == 1) {
-        next_id = std::stoull(line);
+        std::cout << line << std::endl;
+        next = std::stoull(line);
       }
       else {
           size_t pos = line.find(':');
@@ -241,7 +250,7 @@ int swap_space::rebuildVersionMap(std::string filename) {
           if (pos != std::string::npos) {
               std::string key = line.substr(0, pos);
               std::string value = line.substr(pos + 1);
-              std::cout << "Read out:" << key << ":" << value << std::endl;
+              // std::cout << "Read out:" << key << ":" << value << std::endl;
               objects_to_versions[std::stoull(key)] = std::stoull(value);
           } else {
               std::cerr << "Delimiter ':' not found!" << std::endl;
@@ -262,7 +271,7 @@ int swap_space::rebuildVersionMap(std::string filename) {
 }
 
 
-int swap_space::rebuildObjectMap() {
+int swap_space::rebuildObjectMap(uint64_t next) {
   std::cout << "Rebuilding Object map" << std::endl;
   
   // Loop through all keys in map
@@ -333,11 +342,31 @@ int swap_space::rebuildObjectMap() {
     objects[pair.first] = newObj;
   }
 
+  if (next != UINT64_MAX) {
+    next_id = next;
+  }
+  std::cout << "NEXTID AFTER RECOVERY: " << next_id << std::endl;
+
   std::cout << "NEW Object Map" << std::endl;
   for (const auto& pair : objects) {
-    std::cout << pair.first << ":" << pair.second->is_leaf << std::endl;
+    std::cout << pair.first << ": " << pair.second->id << ", " << pair.second->version << ", " << pair.second->is_leaf << ", " << pair.second->refcount << ", " << pair.second->last_access << ", " << pair.second->target_is_dirty << ", " << pair.second->pincount << std::endl;
   }
-  
+  std::cout << std::endl;
+
+  if (objects_to_versions.size() == 0) {
+    return 1;
+  }
+
   return 0;
 
+}
+
+void swap_space::print_LRU(void) {
+  object *obj = NULL;
+  std::cout << "PRINTING LRU: " << std::endl;
+    for (auto it = lru_pqueue.begin(); it != lru_pqueue.end();) {
+        obj = *it;
+        std::cout << obj->id << std::endl;
+        ++it;
+    }
 }

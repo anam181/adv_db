@@ -533,15 +533,24 @@ private:
 
     Value query(const betree & bet, const Key k) const
     {
-      debug(std::cout << "Querying " << this << std::endl);
+      std::cout << "Querying " << this << std::endl;
+      std::cout << "THIS PIVOTS: {" << std::endl;
+      for (const auto& pair : pivots) {
+        std::cout << pair.first << ": " << pair.second.child.get_target() << std::endl;
+      }
+      std::cout << "}" << std::endl;
+
       if (is_leaf()) {
-	auto it = elements.lower_bound(MessageKey<Key>::range_start(k));
-	if (it != elements.end() && it->first.key == k) {
-	  assert(it->second.opcode == INSERT);
-	  return it->second.val;
-	} else {
-	  throw std::out_of_range("Key does not exist");
-	}
+        std::cout << "IN LEAF" << std::endl;
+        auto it = elements.lower_bound(MessageKey<Key>::range_start(k));
+        if (it != elements.end() && it->first.key == k) {
+          assert(it->second.opcode == INSERT);
+          std::cout << "LEAF INSERT MESSAGE FOUND: " << it->second.val << std::endl;
+          return it->second.val;
+        } else {
+          std::cout << "Not found" << std::endl;
+          throw std::out_of_range("Key does not exist");
+        }
       }
 
       ///////////// Non-leaf
@@ -549,39 +558,42 @@ private:
       auto message_iter = get_element_begin(k);
       Value v = bet.default_value;
 
-      if (message_iter == elements.end() || k < message_iter->first)
-	// If we don't have any messages for this key, just search
-	// further down the tree.
-	v = get_pivot(k)->second.child->query(bet, k);
+      if (message_iter == elements.end() || k < message_iter->first){
+        // If we don't have any messages for this key, just search
+        // further down the tree.
+        std::cout << "Querying: " << get_pivot(k)->second.child.get_target() << std::endl; 
+        v = get_pivot(k)->second.child->query(bet, k);
+      }
       else if (message_iter->second.opcode == UPDATE) {
-	// We have some updates for this key.  Search down the tree.
-	// If it has something, then apply our updates to that.  If it
-	// doesn't have anything, then apply our updates to the
-	// default initial value.
-	try {
-	  Value t = get_pivot(k)->second.child->query(bet, k);
-	  v = t;
-	} catch (std::out_of_range & e) {}
+        // We have some updates for this key.  Search down the tree.
+        // If it has something, then apply our updates to that.  If it
+        // doesn't have anything, then apply our updates to the
+        // default initial value.
+        try {
+          Value t = get_pivot(k)->second.child->query(bet, k);
+          v = t;
+        } catch (std::out_of_range & e) {}
       } else if (message_iter->second.opcode == DELETE) {
-	// We have a delete message, so we don't need to look further
-	// down the tree.  If we don't have any further update or
-	// insert messages, then we should return does-not-exist (in
-	// this subtree).
-	message_iter++;
-	if (message_iter == elements.end() || k < message_iter->first)
-	  throw std::out_of_range("Key does not exist");
+        // We have a delete message, so we don't need to look further
+        // down the tree.  If we don't have any further update or
+        // insert messages, then we should return does-not-exist (in
+        // this subtree).
+        message_iter++;
+        if (message_iter == elements.end() || k < message_iter->first)
+          throw std::out_of_range("Key does not exist");
       } else if (message_iter->second.opcode == INSERT) {
-	// We have an insert message, so we don't need to look further
-	// down the tree.  We'll apply any updates to this value.
-	v = message_iter->second.val;
-	message_iter++;
+        // We have an insert message, so we don't need to look further
+        // down the tree.  We'll apply any updates to this value.
+        std::cout << "Non leaf INSERT MESSAGE FOUND: " << message_iter->second.val << std::endl;
+        v = message_iter->second.val;
+        message_iter++;
       }
 
       // Apply any updates to the value obtained above.
       while (message_iter != elements.end() && message_iter->first.key == k) {
-	assert(message_iter->second.opcode == UPDATE);
-	v = v + message_iter->second.val;
-	message_iter++;
+        assert(message_iter->second.opcode == UPDATE);
+        v = v + message_iter->second.val;
+        message_iter++;
       }
 
       return v;
@@ -590,13 +602,14 @@ private:
     std::pair<MessageKey<Key>, Message<Value> >
     get_next_message_from_children(const MessageKey<Key> *mkey) const {
       if (mkey && *mkey < pivots.begin()->first)
-	mkey = NULL;
+	      mkey = NULL;
       auto it = mkey ? get_pivot(mkey->key) : pivots.begin();
       while (it != pivots.end()) {
-	try {
-	  return it->second.child->get_next_message(mkey);
-	} catch (std::out_of_range & e) {}
-	++it;
+        try {
+          std::cout << "it->second :" << it->second.child.get_target() << std::endl;
+          return it->second.child->get_next_message(mkey);
+        } catch (std::out_of_range & e) {}
+        ++it;
       }
       throw std::out_of_range("No more messages in any children");
     }
@@ -606,22 +619,26 @@ private:
       auto it = mkey ? elements.upper_bound(*mkey) : elements.begin();
 
       if (is_leaf()) {
-	if (it == elements.end())
-	  throw std::out_of_range("No more messages in sub-tree");
-	return std::make_pair(it->first, it->second);
+        if (it == elements.end())
+          throw std::out_of_range("No more messages in sub-tree");
+        return std::make_pair(it->first, it->second);
       }
 
       if (it == elements.end())
-	return get_next_message_from_children(mkey);
+	      return get_next_message_from_children(mkey);
       
       try {
-	auto kids = get_next_message_from_children(mkey);
-	if (kids.first < it->first)
-	  return kids;
-	else 
-	  return std::make_pair(it->first, it->second);
-      } catch (std::out_of_range & e) {
-	return std::make_pair(it->first, it->second);	
+        auto kids = get_next_message_from_children(mkey);
+        if (kids.first < it->first) {
+          std::cout << "RETURNING KIDS" << std::endl;
+          return kids;
+        }
+        else {
+          std::cout << "RETURNING It" << std::endl;
+          return std::make_pair(it->first, it->second);
+        }
+            } catch (std::out_of_range & e) {
+        return std::make_pair(it->first, it->second);	
       }
     }
     
@@ -667,19 +684,22 @@ public:
     logger(logger),
     operation_count(0)
     {
-      std::cout << "BEFORE: " <<  std::endl;
-      logger.print_log_on_disk();
+      
+      // std::cout << "BEFORE: " <<  std::endl;
+      // logger.print_log_on_disk();
       root = ss->allocate_root(new node);
       recoveryManager recoverManager_(sspace, this);
-      recoverManager_.recoverState();
-      std::cout << "AFTER: " << std::endl;
-      logger.print_log_on_disk();
+      uint64_t temp_root_id = recoverManager_.recoverState();
+      // std::cout << "AFTER: " << std::endl;
+      // logger.print_log_on_disk();
+      
     }
     
 
     void checkpoint() {
       // Perform checkpointing only after a certain number of operations (threshold)
       std::cout << "Performing checkpoint..." << std::endl;
+
       // Flush logs
       logger.flush();
 
@@ -693,6 +713,7 @@ public:
       logger.clear_log_on_disk();
 
       ss->delete_old_version();
+      ss->print_LRU();
 
       // Push Checkpoint entry
       //Logger::LogRecord record = {static_cast<OperationType>(3), 0, "", next_timestamp}; 
@@ -700,6 +721,12 @@ public:
       logger.log(record);
 
       operation_count = 0;
+      std::cout << "Querying 26729 after Checkpoint: ";
+        try {
+          std::cout << query(26729) << std::endl;
+        } catch (std::out_of_range & e) {
+          std::cout << "DNE" << std::endl;
+        }
     }
 
     void clear_log() {
@@ -709,9 +736,23 @@ public:
     // Insert the specified message and handle a split of the root if it occurs.
     void upsert(int opcode, Key k, Value v, bool do_log) {
         operation_count++;
-        std::cout << "Opcount:" << operation_count << std::endl;
+        std::cout << "Opcount:" << operation_count << " Inserting: " << v << std::endl;
         // std::cout << "Upserting: " << opcode << " " << k << " with value: " << v << "Op count" << operation_count <<std::endl;
         //Logger::LogRecord record = {static_cast<OperationType>(opcode), k, v, next_timestamp++}; 
+
+        std::cout << "Swap Space Object Map: " << std::endl;
+        // uint64_t id;
+        // uint64_t version;
+        // bool is_leaf;
+        // uint64_t refcount;
+        // uint64_t last_access;
+        // bool target_is_dirty;
+        // uint64_t pincount;
+        for (const auto& pair : ss->objects) {
+          std::cout << pair.first << ": " << pair.second->id << ", " << pair.second->version << ", " << pair.second->is_leaf << ", " << pair.second->refcount << ", " << pair.second->last_access << ", " << pair.second->target_is_dirty << ", " << pair.second->pincount << std::endl;
+        }
+        std::cout << std::endl;
+
         if(do_log) {
           Logger::LogRecord record = {opcode, k, v, next_timestamp++}; 
           logger.log(record);
@@ -728,6 +769,22 @@ public:
         if (operation_count >= logger.get_checkpoint_granularity()) {
             checkpoint();
         }
+        else if (v == "26729:") {
+          std::cout << "Querying 26729 after upsert: ";
+          try {
+            std::cout << query(26729) << std::endl;
+          } catch (std::out_of_range & e) {
+            std::cout << "DNE" << std::endl;
+          }
+        }
+        // else if (operation_count % 100 == 0) {
+        //   std::cout << "Querying 26729 after 198: ";
+        //   try {
+        //     std::cout << query(26729) << std::endl;
+        //   } catch (std::out_of_range & e) {
+        //     std::cout << "DNE" << std::endl;
+        //   }
+        // }
     }
 
   void insert(Key k, Value v, bool do_log = true)
@@ -765,7 +822,8 @@ public:
 	std::cout << current.first.key       << " "
 		  << current.first.timestamp << " "
 		  << current.second.opcode   << " "
-		  << current.second.val      << std::endl;
+		  << current.second.val      << " "
+      << root.get_target() << std::endl;
 	current = root->get_next_message(&current.first);
       } while (1);
     } catch (std::out_of_range e) {}
@@ -902,9 +960,10 @@ public:
         betree<Key, Value> *betree_;
     public:
         recoveryManager(swap_space *sspace, betree<Key, Value> *betree_) : sspace(sspace), betree_(betree_) {}
-        void recoverState() {
+        uint64_t recoverState() {
           std::cout << "Recovering State!" << std::endl;
-          uint64_t rootId = NULL;
+          uint64_t rootId = UINT64_MAX;
+          uint64_t next = UINT64_MAX;
           std::string versionMapFilename;
           std::string logFilename;
 
@@ -913,17 +972,39 @@ public:
           // Read in Kv_store.log
           // If empty do nothing
           // Else make dictionary and find root
-          if(sspace->rebuildVersionMap(versionMapFilename)) {
+          if(sspace->rebuildVersionMap(versionMapFilename, rootId, next)) {
               std::cout << "ERROR: rebuilding map" << std::endl;
-              return;
+              assert(false);
           }
           // Rebuild tree using root and dictionary
           //if(sspace->root_id != NULL) {
-              sspace->rebuildObjectMap();
+          sspace->rebuildObjectMap(next);
+          sspace->print_LRU();
+          if(rootId != UINT64_MAX) {
+            std::cout << "GETTING ROOT" << std::endl;
+            // betree_->root = sspace->get_root(new node, rootId);
+            betree_->root.set_target(rootId);
+          }
+          // else {
+          //   betree_->root = sspace->allocate_root(new node);
+          // }
           //}
           // Read log only apply log entries after checkpoint
-
+          // std::cout << "Querying 26729 before replay logs: ";
+          // try {
+          //   std::cout << betree_->query(26729) << std::endl;
+          // } catch (std::out_of_range & e) {
+          //   std::cout << "DNE" << std::endl;
+          // }
           replayLogs();
+          
+          std::cout << "Querying 26729 after replay logs: ";
+          try {
+            std::cout << betree_->query(26729) << std::endl;
+          } catch (std::out_of_range & e) {
+            std::cout << "DNE" << std::endl;
+          }
+          return rootId;
         }
     private:
         int readMasterLog(std::string& versionMapFilename, std::string& logFilename) {

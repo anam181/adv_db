@@ -170,6 +170,7 @@ template<class X> void deserialize(std::iostream &fs, serialization_context &con
 
 class swap_space {
 public:
+  
   uint64_t root_id;
   swap_space(backing_store *bs, uint64_t n);
 
@@ -178,8 +179,9 @@ public:
   void write_back_dirty_pages_info_to_disk(void);
   void write_version_map_to_disk(void);
   void delete_old_version(void);
-  int rebuildVersionMap(std::string filename);
-  int rebuildObjectMap();
+  int rebuildVersionMap(std::string filename, uint64_t& root_id, uint64_t& next);
+  int rebuildObjectMap(uint64_t next);
+  void print_LRU(void);
 
   //Given a heap pointer, construct a ss object around it.
   //this is used to register nodes in the ss.
@@ -192,6 +194,13 @@ public:
   pointer<Referent> allocate_root(Referent * tgt) {
     pointer<Referent> root_pointer = pointer<Referent>(this, tgt);
     root_id = root_pointer.target;
+    return root_pointer;
+  }
+
+  template<class Referent>
+  pointer<Referent> get_root(Referent * temp, uint64_t tgt) {
+    pointer<Referent> root_pointer = pointer<Referent>(this, tgt);
+    // load<Referent>(tgt);
     return root_pointer;
   }
 
@@ -312,6 +321,7 @@ public:
     void depoint(void) {
       if (target == 0)
 	      return;
+      std::cout << "DEPOINTING: " << target << " " << ss->objects.count(target) << std::endl;
       assert(ss->objects.count(target) > 0);
 
       object *obj = ss->objects[target];
@@ -328,12 +338,16 @@ public:
           }
         }
         ss->objects.erase(target);
+        ss->objects_to_versions.erase(target);
         ss->lru_pqueue.erase(obj);
-        if (obj->target)
+        if (obj->target){
+          std::cout << "deleting target: " << obj->target<< std::endl;
           delete obj->target;
+        }
         ss->current_in_memory_objects--;
         // if (obj->version > 0)
         //   ss->backstore->deallocate(obj->id, obj->version);
+        std::cout << "deleting obj: " << obj->id << std::endl;
         delete obj;
       }
         target = 0;
@@ -341,13 +355,14 @@ public:
 
     pointer & operator=(const pointer &other) {
       if (&other != this) {
-	depoint();
-	ss = other.ss;
-	target = other.target;
-	if (target > 0) {
-	  assert(ss->objects.count(target) > 0);
-	  ss->objects[target]->refcount++;
-	}
+        std::cout << "USING = Operator" << std::endl;
+        depoint();
+        ss = other.ss;
+        target = other.target;
+        if (target > 0) {
+          assert(ss->objects.count(target) > 0);
+          ss->objects[target]->refcount++;
+        }
       }
       return *this;
     }
@@ -391,6 +406,14 @@ public:
       return target > 0 && ss->objects[target]->target && ss->objects[target]->target_is_dirty;
     }
 
+    uint64_t get_target(void) const {
+      return target;
+    }
+
+    void set_target(uint64_t tgt) {
+      target = tgt;
+    }
+
     void _serialize(std::iostream &fs, serialization_context &context) {
       assert(target > 0);
       assert(context.ss.objects.count(target) > 0);
@@ -428,6 +451,14 @@ public:
       assert(ss->objects.count(target) == 0);
       ss->objects[target] = o;
       ss->lru_pqueue.insert(o);
+      ss->current_in_memory_objects++;
+      ss->maybe_evict_something();
+    }
+
+    pointer(swap_space *sspace, uint64_t tgt) {
+      ss = sspace;
+      target = tgt;
+      ss->lru_pqueue.insert(ss->objects[target]);
       ss->current_in_memory_objects++;
       ss->maybe_evict_something();
     }
@@ -487,9 +518,11 @@ private:
 
   //structs used in ss
   //objects is a map from targets->objects (target == obj->id)
-  std::unordered_map<uint64_t, object *> objects;
+  
   std::unordered_map<uint64_t, uint64_t> objects_to_versions;
   std::set<object *, bool (*)(object *, object *)> lru_pqueue;
+public:
+  std::unordered_map<uint64_t, object *> objects;
 };
 
 #endif // SWAP_SPACE_HPP
