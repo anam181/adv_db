@@ -26,4 +26,9 @@ backing_store.o: backing_store.hpp backing_store.cpp
 logger.o: logger.cpp logger.hpp
 
 clean:
-	$(RM) *.o test test_logging_restore generate tmpdir/*
+	$(RM) *.o test test_logging_restore generate tmpdir/* version_map.txt kv_store.log output.txt
+	touch version_map.txt kv_store.log output.txt
+
+cleanfiles:
+	$(RM) tmpdir/* version_map.txt kv_store.log output.txt
+	touch version_map.txt kv_store.log output.txt

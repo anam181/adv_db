@@ -533,22 +533,12 @@ private:
 
     Value query(const betree & bet, const Key k) const
     {
-      std::cout << "Querying " << this << std::endl;
-      std::cout << "THIS PIVOTS: {" << std::endl;
-      for (const auto& pair : pivots) {
-        std::cout << pair.first << ": " << pair.second.child.get_target() << std::endl;
-      }
-      std::cout << "}" << std::endl;
-
       if (is_leaf()) {
-        std::cout << "IN LEAF" << std::endl;
         auto it = elements.lower_bound(MessageKey<Key>::range_start(k));
         if (it != elements.end() && it->first.key == k) {
           assert(it->second.opcode == INSERT);
-          std::cout << "LEAF INSERT MESSAGE FOUND: " << it->second.val << std::endl;
           return it->second.val;
         } else {
-          std::cout << "Not found" << std::endl;
           throw std::out_of_range("Key does not exist");
         }
       }
@@ -561,7 +551,6 @@ private:
       if (message_iter == elements.end() || k < message_iter->first){
         // If we don't have any messages for this key, just search
         // further down the tree.
-        std::cout << "Querying: " << get_pivot(k)->second.child.get_target() << std::endl; 
         v = get_pivot(k)->second.child->query(bet, k);
       }
       else if (message_iter->second.opcode == UPDATE) {
@@ -584,7 +573,6 @@ private:
       } else if (message_iter->second.opcode == INSERT) {
         // We have an insert message, so we don't need to look further
         // down the tree.  We'll apply any updates to this value.
-        std::cout << "Non leaf INSERT MESSAGE FOUND: " << message_iter->second.val << std::endl;
         v = message_iter->second.val;
         message_iter++;
       }
@@ -606,7 +594,6 @@ private:
       auto it = mkey ? get_pivot(mkey->key) : pivots.begin();
       while (it != pivots.end()) {
         try {
-          std::cout << "it->second :" << it->second.child.get_target() << std::endl;
           return it->second.child->get_next_message(mkey);
         } catch (std::out_of_range & e) {}
         ++it;
@@ -630,11 +617,9 @@ private:
       try {
         auto kids = get_next_message_from_children(mkey);
         if (kids.first < it->first) {
-          std::cout << "RETURNING KIDS" << std::endl;
           return kids;
         }
         else {
-          std::cout << "RETURNING It" << std::endl;
           return std::make_pair(it->first, it->second);
         }
             } catch (std::out_of_range & e) {
@@ -684,21 +669,13 @@ public:
     logger(logger),
     operation_count(0)
     {
-      
-      // std::cout << "BEFORE: " <<  std::endl;
-      // logger.print_log_on_disk();
-      root = ss->allocate_root(new node);
       recoveryManager recoverManager_(sspace, this);
       uint64_t temp_root_id = recoverManager_.recoverState();
-      // std::cout << "AFTER: " << std::endl;
-      // logger.print_log_on_disk();
-      
     }
     
 
     void checkpoint() {
       // Perform checkpointing only after a certain number of operations (threshold)
-      std::cout << "Performing checkpoint..." << std::endl;
 
       // Flush logs
       logger.flush();
@@ -713,20 +690,12 @@ public:
       logger.clear_log_on_disk();
 
       ss->delete_old_version();
-      ss->print_LRU();
 
       // Push Checkpoint entry
-      //Logger::LogRecord record = {static_cast<OperationType>(3), 0, "", next_timestamp}; 
 	    Logger::LogRecord record = {3, 0, "", next_timestamp}; 
       logger.log(record);
 
       operation_count = 0;
-      std::cout << "Querying 26729 after Checkpoint: ";
-        try {
-          std::cout << query(26729) << std::endl;
-        } catch (std::out_of_range & e) {
-          std::cout << "DNE" << std::endl;
-        }
     }
 
     void clear_log() {
@@ -736,22 +705,6 @@ public:
     // Insert the specified message and handle a split of the root if it occurs.
     void upsert(int opcode, Key k, Value v, bool do_log) {
         operation_count++;
-        std::cout << "Opcount:" << operation_count << " Inserting: " << v << std::endl;
-        // std::cout << "Upserting: " << opcode << " " << k << " with value: " << v << "Op count" << operation_count <<std::endl;
-        //Logger::LogRecord record = {static_cast<OperationType>(opcode), k, v, next_timestamp++}; 
-
-        std::cout << "Swap Space Object Map: " << std::endl;
-        // uint64_t id;
-        // uint64_t version;
-        // bool is_leaf;
-        // uint64_t refcount;
-        // uint64_t last_access;
-        // bool target_is_dirty;
-        // uint64_t pincount;
-        for (const auto& pair : ss->objects) {
-          std::cout << pair.first << ": " << pair.second->id << ", " << pair.second->version << ", " << pair.second->is_leaf << ", " << pair.second->refcount << ", " << pair.second->last_access << ", " << pair.second->target_is_dirty << ", " << pair.second->pincount << std::endl;
-        }
-        std::cout << std::endl;
 
         if(do_log) {
           Logger::LogRecord record = {opcode, k, v, next_timestamp++}; 
@@ -769,39 +722,20 @@ public:
         if (operation_count >= logger.get_checkpoint_granularity()) {
             checkpoint();
         }
-        else if (v == "26729:") {
-          std::cout << "Querying 26729 after upsert: ";
-          try {
-            std::cout << query(26729) << std::endl;
-          } catch (std::out_of_range & e) {
-            std::cout << "DNE" << std::endl;
-          }
-        }
-        // else if (operation_count % 100 == 0) {
-        //   std::cout << "Querying 26729 after 198: ";
-        //   try {
-        //     std::cout << query(26729) << std::endl;
-        //   } catch (std::out_of_range & e) {
-        //     std::cout << "DNE" << std::endl;
-        //   }
-        // }
     }
 
   void insert(Key k, Value v, bool do_log = true)
   {
-	  // std::cout << "Inserting: Key = " << k << ", Value = " << v << std::endl;
     upsert(INSERT, k, v, do_log);
   }
 
   void update(Key k, Value v, bool do_log = true)
   {
-	  // std::cout << "Updating: Key = " << k << ", New Value = " << v << std::endl;
     upsert(UPDATE, k, v, do_log);
   }
 
   void erase(Key k, bool do_log = true)
   {
-	  // std::cout << "Deleting: Key = " << k << std::endl;
     upsert(DELETE, k, default_value, do_log);
   }
   
@@ -961,54 +895,40 @@ public:
     public:
         recoveryManager(swap_space *sspace, betree<Key, Value> *betree_) : sspace(sspace), betree_(betree_) {}
         uint64_t recoverState() {
-          std::cout << "Recovering State!" << std::endl;
           uint64_t rootId = UINT64_MAX;
           uint64_t next = UINT64_MAX;
           std::string versionMapFilename;
           std::string logFilename;
 
+          // Get version and log file names
           readMasterLog(versionMapFilename, logFilename);
 
-          // Read in Kv_store.log
+          // Read in version_map.txt
           // If empty do nothing
           // Else make dictionary and find root
           if(sspace->rebuildVersionMap(versionMapFilename, rootId, next)) {
               std::cout << "ERROR: rebuilding map" << std::endl;
               assert(false);
           }
-          // Rebuild tree using root and dictionary
-          //if(sspace->root_id != NULL) {
+
+          // Rebuild Object Map
           sspace->rebuildObjectMap(next);
-          sspace->print_LRU();
+
+          // Set root node
           if(rootId != UINT64_MAX) {
-            std::cout << "GETTING ROOT" << std::endl;
-            // betree_->root = sspace->get_root(new node, rootId);
-            betree_->root.set_target(rootId);
+            betree_->root = sspace->get_root(new node, rootId);
           }
-          // else {
-          //   betree_->root = sspace->allocate_root(new node);
-          // }
-          //}
+          else {
+            betree_->root = sspace->allocate_root(new node);
+          }
+
           // Read log only apply log entries after checkpoint
-          // std::cout << "Querying 26729 before replay logs: ";
-          // try {
-          //   std::cout << betree_->query(26729) << std::endl;
-          // } catch (std::out_of_range & e) {
-          //   std::cout << "DNE" << std::endl;
-          // }
           replayLogs();
-          
-          std::cout << "Querying 26729 after replay logs: ";
-          try {
-            std::cout << betree_->query(26729) << std::endl;
-          } catch (std::out_of_range & e) {
-            std::cout << "DNE" << std::endl;
-          }
+
           return rootId;
         }
     private:
         int readMasterLog(std::string& versionMapFilename, std::string& logFilename) {
-          std::cout << "Reading master record" << std::endl;
           std::ifstream file("master.log");
           if (!file.is_open()) {
               std::cerr << "Error: Could not open master log.\n";
@@ -1049,7 +969,6 @@ public:
             return;
           }
 
-          std::cout << "Replaying Logs:" << std::endl;
           int logReplayCount = 0;
           int lsn;
           int operation = 4;
@@ -1058,7 +977,6 @@ public:
           unsigned long timestamp;
           std::string line;
           while (std::getline(logFile, line)) {
-            // std::cout << line << std::endl;
             logReplayCount++;
             value = "";
 
@@ -1083,7 +1001,6 @@ public:
             if (pos != std::string::npos) {
               timestamp = std::stoul(line.substr(pos + 12));
             }
-            // std::cout<< "Replaying Operation!: " << operation << std::endl;
             switch (operation) {
               case 0: 
                 betree_->insert(key, value, false);
@@ -1103,7 +1020,6 @@ public:
 
           }
           logFile.close();
-          std::cout << "REPLAY COUNT:" << logReplayCount << std::endl;
         };
 		  
   };

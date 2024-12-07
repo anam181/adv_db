@@ -7,13 +7,11 @@ uint64_t Logger::curr_lsn = 0;
 Logger::Logger(const std::string& filename, uint64_t log_granularity, uint64_t checkpoint_granularity) 
     : log_filename(filename), log_granularity(log_granularity), checkpoint_granularity(checkpoint_granularity)  // Initialize flush threshold
 {
-    print_log_on_disk();
-    std::cout << "Opening log file.." << std::endl;
     log_file.open(log_filename, std::ofstream::out | std::ofstream::app);
     if (!log_file.is_open()) {
         throw std::runtime_error("Unable to open log file: " + filename);
     }
-    print_log_on_disk();
+
 }
 
 Logger::~Logger() {
@@ -46,7 +44,6 @@ std::vector<Logger::LogRecord>& Logger::get_log_buffer() {
 }
 
 void Logger::clear_log_on_disk() {
-    std::cout << "Clearing log on disk" << std::endl;
     // Close
     if (log_file.is_open()) {
        log_file.close(); 

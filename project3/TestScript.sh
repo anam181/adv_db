@@ -28,7 +28,7 @@ rm -f $TREE_DIRECTORY/*
 ####
 echo "Now spawning the test program..."
 # spawn the child process and save the PID for later
-./test_logging_restore -d $TREE_DIRECTORY -m test -i $INPUT_FILE_NAME -o $OUTPUT_FILE_NAME -t $(wc -l < $INPUT_FILE_NAME) -c 1000 -p 100 & test_program_pid=$!
+./test_logging_restore -d $TREE_DIRECTORY -m test -i $INPUT_FILE_NAME -o $OUTPUT_FILE_NAME -t $(wc -l < $INPUT_FILE_NAME) -c 200 -p 100 & test_program_pid=$!
 # sleep several seconds before attempting to kill
 sleep $WAIT_KILL_TIME
 echo "Now attempting to kill program..."
@@ -47,6 +47,8 @@ echo "FOUND THAT $num_lines_finished OPERATIONS FINISHED BEFORE CRASH"
 tail -n $(($TOTAL_LINES-$num_lines_finished)) "$INPUT_FILE_NAME" > $OUTPUT_FILE_NAME_RESUME
 
 # restart the program and let it finish all of the operations after the crash
+echo ./test_logging_restore -d $TREE_DIRECTORY -m test -i $OUTPUT_FILE_NAME_RESUME -o $OUTPUT_FILE_NAME_FINAL -t $(wc -l < $OUTPUT_FILE_NAME_RESUME) -c 1000 -p 100
+
 ./test_logging_restore -d $TREE_DIRECTORY -m test -i $OUTPUT_FILE_NAME_RESUME -o $OUTPUT_FILE_NAME_FINAL -t $(wc -l < $OUTPUT_FILE_NAME_RESUME) -c 1000 -p 100
 
 # now split both the resume file and the test file for the last 400 points to test the queries

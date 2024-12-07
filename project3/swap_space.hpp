@@ -182,6 +182,7 @@ public:
   int rebuildVersionMap(std::string filename, uint64_t& root_id, uint64_t& next);
   int rebuildObjectMap(uint64_t next);
   void print_LRU(void);
+  void print_ref_counts(void);
 
   //Given a heap pointer, construct a ss object around it.
   //this is used to register nodes in the ss.
@@ -200,7 +201,6 @@ public:
   template<class Referent>
   pointer<Referent> get_root(Referent * temp, uint64_t tgt) {
     pointer<Referent> root_pointer = pointer<Referent>(this, tgt);
-    // load<Referent>(tgt);
     return root_pointer;
   }
 
@@ -321,7 +321,6 @@ public:
     void depoint(void) {
       if (target == 0)
 	      return;
-      std::cout << "DEPOINTING: " << target << " " << ss->objects.count(target) << std::endl;
       assert(ss->objects.count(target) > 0);
 
       object *obj = ss->objects[target];
@@ -341,13 +340,9 @@ public:
         ss->objects_to_versions.erase(target);
         ss->lru_pqueue.erase(obj);
         if (obj->target){
-          std::cout << "deleting target: " << obj->target<< std::endl;
           delete obj->target;
         }
         ss->current_in_memory_objects--;
-        // if (obj->version > 0)
-        //   ss->backstore->deallocate(obj->id, obj->version);
-        std::cout << "deleting obj: " << obj->id << std::endl;
         delete obj;
       }
         target = 0;
@@ -355,7 +350,6 @@ public:
 
     pointer & operator=(const pointer &other) {
       if (&other != this) {
-        std::cout << "USING = Operator" << std::endl;
         depoint();
         ss = other.ss;
         target = other.target;
@@ -458,9 +452,9 @@ public:
     pointer(swap_space *sspace, uint64_t tgt) {
       ss = sspace;
       target = tgt;
-      ss->lru_pqueue.insert(ss->objects[target]);
-      ss->current_in_memory_objects++;
-      ss->maybe_evict_something();
+      // ss->lru_pqueue.insert(ss->objects[target]);
+      // ss->current_in_memory_objects++;
+      // ss->maybe_evict_something();
     }
 
   };

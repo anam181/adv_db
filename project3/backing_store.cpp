@@ -29,12 +29,12 @@ void one_file_per_object_backing_store::deallocate(uint64_t obj_id, uint64_t ver
     std::string filename = get_filename(obj_id, version);
     if (unlink(filename.c_str()) != 0) {
         if (errno == ENOENT) {
-            std::cerr << "Warning: File not found for deletion: " << filename << std::endl;
+            // std::cerr << "Warning: File not found for deletion: " << filename << std::endl;
         } else {
             std::cerr << "Error: Failed to delete file: " << filename << ", Error: " << errno << std::endl;
         }
     } else {
-        std::cout << "File deleted successfully: " << filename << std::endl;
+       // Successfully delted
     }
 }
 

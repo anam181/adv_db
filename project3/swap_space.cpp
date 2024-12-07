@@ -102,7 +102,6 @@ void swap_space::write_back(swap_space::object *obj)
   obj->is_leaf = ctxt.is_leaf;
 
   if (obj->target_is_dirty) {
-    // std::cout << "WRITING BACK" << std::endl;
     std::string buffer = sstream.str();
 
 
@@ -131,7 +130,6 @@ void swap_space::write_back(swap_space::object *obj)
 //pull objects with low counts first to try and find an object with pincount 0.
 void swap_space::maybe_evict_something(void)
 {
-  // std::cout << "MAYBE EVICT SOMETHING" << std::endl;
   while (current_in_memory_objects > max_in_memory_objects) {
     object *obj = NULL;
     for (auto it = lru_pqueue.begin(); it != lru_pqueue.end(); ++it)
@@ -153,27 +151,27 @@ void swap_space::maybe_evict_something(void)
 
 void swap_space::write_back_dirty_pages_info_to_disk(void)
 {
-    object *obj = NULL;
-    for (auto it = lru_pqueue.begin(); it != lru_pqueue.end();) {
-        obj = *it;
-        if (obj == NULL || !obj->target_is_dirty) {
-            ++it;
-            continue;
-        }
-        std::cout << "WRITING BACK" << std::endl;
-        auto next_it = std::next(it);  // Save the next iterator
-        lru_pqueue.erase(it);          // Erase the current element
-        write_back(obj);               // Write back the object
-        
-        delete obj->target;           // Deallocate the target memory
-        obj->target = NULL;           // Nullify the target pointer
-        current_in_memory_objects--; // Decrement the count of in-memory objects
+  // Write back all dirty pages and remove them from the queue
+  object *obj = NULL;
+  for (auto it = lru_pqueue.begin(); it != lru_pqueue.end();) {
+      obj = *it;
+      if (obj == NULL || !obj->target_is_dirty) {
+          ++it;
+          continue;
+      }
+      auto next_it = std::next(it);
+      lru_pqueue.erase(it);
+      write_back(obj);
+      
+      delete obj->target;
+      obj->target = NULL;
+      current_in_memory_objects--;
 
-        it = next_it; // Move the iterator to the next element
-    }
+      it = next_it;
+  }
 }
 
-// CHANGE to FLUSH
+
 void swap_space::write_version_map_to_disk(void) {
   std::string version_map_filename = "version_map.txt";
   std::string temp_version_map_filename = "tmp_version_map.txt";
@@ -181,15 +179,12 @@ void swap_space::write_version_map_to_disk(void) {
   // Open new temp file
   std::ofstream temp_version_map_file;
   temp_version_map_file.open(temp_version_map_filename, std::ofstream::out | std::ofstream::trunc);
-  std::cout << "VERSION MAP AT CHECKPOINT" << std::endl;
-  std::cout << root_id << std::endl;
-  std::cout << next_id << std::endl;
+
   // Write each log record to the file
   temp_version_map_file << root_id << std::endl;
   temp_version_map_file << next_id << std::endl;
   for (const auto& pair : objects_to_versions) {
       temp_version_map_file << pair.first << ":" << pair.second << std::endl;
-      std::cout << pair.first << ":" << pair.second << std::endl;
   }
   temp_version_map_file.close();
 
@@ -218,13 +213,11 @@ void swap_space::delete_old_version(void) {
         }
     }
 
-    std::cout << "NEXTID AFTER CHECKPOINT: " << next_id << std::endl;
 }
 
 
 int swap_space::rebuildVersionMap(std::string filename, uint64_t& root_id, uint64_t& next) {
   // Read in file and parse out the data
-  std::cout << "Rebuilding version map" << std::endl;
   std::ifstream file(filename);
   if (!file.is_open()) {
       std::cerr << "Error: Could not open file.\n";
@@ -233,15 +226,11 @@ int swap_space::rebuildVersionMap(std::string filename, uint64_t& root_id, uint6
 
   std::string line;
   int lineCount = 0;
-  std::cout << "Reading Version File:" << std::endl;
   while (std::getline(file, line)) {
-    std::cout << line << std::endl;
       if(lineCount == 0) {
-        std::cout << line << std::endl;
         root_id = std::stoull(line);
       }
       else if(lineCount == 1) {
-        std::cout << line << std::endl;
         next = std::stoull(line);
       }
       else {
@@ -250,7 +239,6 @@ int swap_space::rebuildVersionMap(std::string filename, uint64_t& root_id, uint6
           if (pos != std::string::npos) {
               std::string key = line.substr(0, pos);
               std::string value = line.substr(pos + 1);
-              // std::cout << "Read out:" << key << ":" << value << std::endl;
               objects_to_versions[std::stoull(key)] = std::stoull(value);
           } else {
               std::cerr << "Delimiter ':' not found!" << std::endl;
@@ -262,36 +250,20 @@ int swap_space::rebuildVersionMap(std::string filename, uint64_t& root_id, uint6
 
   file.close();
 
-  std::cout << "NEW version Map" << std::endl;
-  for (const auto& pair : objects_to_versions) {
-    std::cout << pair.first << ":" << pair.second << std::endl;
-  }
-
   return 0;
 }
 
 
 int swap_space::rebuildObjectMap(uint64_t next) {
-  std::cout << "Rebuilding Object map" << std::endl;
-  
   // Loop through all keys in map
   for (const auto& pair : objects_to_versions) {
-    std::cout << "Reading Object File:" << pair.first << "_" << pair.second << std::endl;
     // Make object for the key
     object *newObj = new object(this, nullptr);
 
-    // serializable * target;
-    // uint64_t id;
-    // uint64_t version;
-    // bool is_leaf;
-    // uint64_t refcount;
-    // uint64_t last_access;
-    // bool target_is_dirty;
-    // uint64_t pincount;
     newObj->id = pair.first;
     newObj->version = pair.second;
     newObj->target_is_dirty = false;
-    newObj->refcount = 0;
+    newObj->refcount = 1;
     newObj->last_access = UINT64_MAX;
     newObj->pincount = 0;
 
@@ -307,28 +279,29 @@ int swap_space::rebuildObjectMap(uint64_t next) {
 
     std::string line;
     int lineCount = 0;
-    int pivotCount = -1; // Default in case parsing fails
+    int pivotCount = -1;
 
     // Read the file line by line
     while (std::getline(inputFile, line)) {
         lineCount++;
 
-        if (lineCount == 2) { // Process the second line
+        if (lineCount == 2) { 
             std::istringstream iss(line);
             std::string word;
-            if (iss >> word && word == "map") { // Ensure the line starts with "map"
-                if (iss >> pivotCount) { // Extract the number after "map"
-                    std::cout << "Extracted number: " << pivotCount << std::endl;
-                } else {
+            // Check if line starts with map
+            if (iss >> word && word == "map") {
+              // Get number out after map
+                if (iss >> pivotCount) {} 
+                else {
                     std::cerr << "Failed to extract the number after 'map'." << std::endl;
                     assert(false);
                 }
             }
-            break; // Exit the loop after processing the second line
+            break;
         }
     }
 
-    inputFile.close(); // Close the file
+    inputFile.close();
 
     // Check if file has pivots
     if(pivotCount == -1) {
@@ -345,13 +318,6 @@ int swap_space::rebuildObjectMap(uint64_t next) {
   if (next != UINT64_MAX) {
     next_id = next;
   }
-  std::cout << "NEXTID AFTER RECOVERY: " << next_id << std::endl;
-
-  std::cout << "NEW Object Map" << std::endl;
-  for (const auto& pair : objects) {
-    std::cout << pair.first << ": " << pair.second->id << ", " << pair.second->version << ", " << pair.second->is_leaf << ", " << pair.second->refcount << ", " << pair.second->last_access << ", " << pair.second->target_is_dirty << ", " << pair.second->pincount << std::endl;
-  }
-  std::cout << std::endl;
 
   if (objects_to_versions.size() == 0) {
     return 1;
@@ -369,4 +335,11 @@ void swap_space::print_LRU(void) {
         std::cout << obj->id << std::endl;
         ++it;
     }
+}
+
+void swap_space::print_ref_counts(void) {
+  std::cout << "PRINTING REFCOUNTS" << std::endl;
+  for (const auto& pair : objects) {
+    std::cout << "ID: " << pair.first << " Ref: " << pair.second->refcount << std::endl;
+  }
 }

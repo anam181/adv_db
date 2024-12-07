@@ -217,9 +217,6 @@ void custom_recovery(uint64_t max_node_size, uint64_t min_flush_size, uint64_t p
 }
 
 int main(int argc, char **argv) {
-    std::ofstream file("output.txt", std::ios::app);
-    std::streambuf* originalBuffer = std::cout.rdbuf(); // Save original buffer
-    std::cout.rdbuf(file.rdbuf());
     char *mode = NULL;
     uint64_t max_node_size = DEFAULT_TEST_MAX_NODE_SIZE;
     uint64_t min_flush_size = DEFAULT_TEST_MIN_FLUSH_SIZE;
@@ -453,6 +450,5 @@ int main(int argc, char **argv) {
     if (script_input) fclose(script_input);
 
     if (script_output) fclose(script_output);
-    file.close();
     return 0;
 }
